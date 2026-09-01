@@ -1,0 +1,7 @@
+.build/
+.swiftpm/
+*.xcodeproj
+*.xcworkspace
+.DS_Store
+# Built bundles at the repo root only (anchored on purpose).
+/*.app/
