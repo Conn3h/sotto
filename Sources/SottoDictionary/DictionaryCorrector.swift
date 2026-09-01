@@ -1,0 +1,203 @@
+import Foundation
+
+/// One correction that fired while applying a `DictionaryCorrector`, reported once per
+/// entry (not once per occurrence).
+public struct AppliedCorrection: Codable, Hashable, Sendable {
+    /// The exact substring matched by the entry's *first* occurrence (original casing and
+    /// spacing, as it appeared in the input).
+    public let from: String
+    /// The entry's `write` text.
+    public let to: String
+    /// How many times this entry fired.
+    public let count: Int
+
+    public init(from: String, to: String, count: Int) {
+        self.from = from
+        self.to = to
+        self.count = count
+    }
+}
+
+/// Applies personal-dictionary corrections to dictated text.
+///
+/// See `docs/SPEC.md` section 6.11 for the full matching contract. In short: only enabled
+/// `.correction` entries participate; text and triggers are NFC-normalised before matching;
+/// a trigger's parts (split on spaces, tabs and hyphens) are joined with `[\s\-]*` so glued,
+/// spaced and hyphenated forms all match, case-insensitively; a match must not be fenced by
+/// a letter, digit, combining mark or hyphen on either side (apostrophes are boundaries, so
+/// possessives are corrected); a single left-to-right scan resolves overlaps by longest
+/// match, ties going to the earlier entry, and never re-matches replacement text.
+public struct DictionaryCorrector: Sendable {
+    /// A trigger pattern paired with its replacement, in the order its owning entry
+    /// appears in `entries`. Only enabled `.correction` entries with a non-empty trigger
+    /// contribute one of these.
+    private struct Candidate: Sendable {
+        let pattern: String
+        let write: String
+    }
+
+    private let candidates: [Candidate]
+
+    public init(entries: [DictionaryEntry]) {
+        candidates = entries.compactMap { entry in
+            guard entry.kind == .correction, entry.isEnabled else { return nil }
+            guard let pattern = Self.triggerPattern(for: entry.hear) else { return nil }
+            return Candidate(pattern: pattern, write: entry.write)
+        }
+    }
+
+    public var isEmpty: Bool { candidates.isEmpty }
+
+    public static let biasLimit = 40
+
+    /// The `write` side of every enabled entry (terms and corrections), trimmed, skipping
+    /// empties, de-duplicated case-insensitively (keeping the first occurrence), in entry
+    /// order, capped at `biasLimit`.
+    public static func biasPhrases(from entries: [DictionaryEntry]) -> [String] {
+        var seen = Set<String>()
+        var result: [String] = []
+
+        for entry in entries {
+            guard entry.isEnabled else { continue }
+            let trimmed = entry.write.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else { continue }
+
+            let key = trimmed.lowercased()
+            guard !seen.contains(key) else { continue }
+            seen.insert(key)
+
+            result.append(trimmed)
+            if result.count == biasLimit { break }
+        }
+
+        return result
+    }
+
+    public func apply(to text: String) -> (text: String, applied: [AppliedCorrection]) {
+        // The result is always the NFC form of the input, even when nothing matches.
+        let normalized = text.precomposedStringWithCanonicalMapping
+        guard !candidates.isEmpty, !normalized.isEmpty else { return (normalized, []) }
+
+        // Compiled once per call, not stored: `NSRegularExpression` keeps this struct a
+        // plain, trivially `Sendable` value type, and recompiling a handful of short
+        // patterns per utterance is not measurable next to speech recognition itself.
+        let compiled: [(regex: NSRegularExpression, write: String)] = candidates.compactMap { candidate in
+            guard let regex = try? NSRegularExpression(
+                pattern: candidate.pattern,
+                options: [.caseInsensitive]
+            ) else { return nil }
+            return (regex, candidate.write)
+        }
+        guard !compiled.isEmpty else { return (normalized, []) }
+
+        var output = ""
+        output.reserveCapacity(normalized.count)
+
+        // Which compiled entries have fired, in the order they first fired (which, because
+        // this is a single strictly left-to-right pass, is already ordered by first-match
+        // position).
+        var firstFireOrder: [Int] = []
+        var firstFrom = [Int: String]()
+        var counts = [Int: Int]()
+
+        var cursor = normalized.startIndex
+        while cursor < normalized.endIndex {
+            let remaining = NSRange(cursor..<normalized.endIndex, in: normalized)
+
+            var bestIndex: Int?
+            var bestRange: Range<String.Index>?
+            var bestLength = 0
+
+            for (index, entry) in compiled.enumerated() {
+                guard let match = entry.regex.firstMatch(
+                    in: normalized,
+                    options: [.anchored],
+                    range: remaining
+                ) else { continue }
+                guard let range = Range(match.range, in: normalized) else { continue }
+                guard Self.fencesAllow(normalized, range) else { continue }
+
+                let length = normalized.distance(from: range.lowerBound, to: range.upperBound)
+                // Strictly greater only: ties keep the earlier entry, which is already the
+                // one recorded since candidates are scanned in entry order.
+                if length > bestLength {
+                    bestLength = length
+                    bestRange = range
+                    bestIndex = index
+                }
+            }
+
+            if let bestIndex, let bestRange {
+                let entry = compiled[bestIndex]
+                output += entry.write
+                if firstFrom[bestIndex] == nil {
+                    firstFrom[bestIndex] = String(normalized[bestRange])
+                    firstFireOrder.append(bestIndex)
+                }
+                counts[bestIndex, default: 0] += 1
+                cursor = bestRange.upperBound
+            } else {
+                output.append(normalized[cursor])
+                cursor = normalized.index(after: cursor)
+            }
+        }
+
+        let applied = firstFireOrder.map { index in
+            AppliedCorrection(
+                from: firstFrom[index] ?? "",
+                to: compiled[index].write,
+                count: counts[index] ?? 0
+            )
+        }
+        return (output, applied)
+    }
+
+    // MARK: - Trigger patterns
+
+    /// Builds the regex pattern for a trigger, or `nil` if it has no matchable content
+    /// (empty, or entirely whitespace/hyphens).
+    private static func triggerPattern(for hear: String) -> String? {
+        let normalized = hear.precomposedStringWithCanonicalMapping
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalized.isEmpty else { return nil }
+
+        let parts = normalized.split { $0 == " " || $0 == "\t" || $0 == "-" }
+        guard !parts.isEmpty else { return nil }
+
+        let escapedParts = parts.map { NSRegularExpression.escapedPattern(for: String($0)) }
+        return escapedParts.joined(separator: "[\\s\\-]*")
+    }
+
+    // MARK: - Fencing
+
+    private static func fencesAllow(_ text: String, _ range: Range<String.Index>) -> Bool {
+        if range.lowerBound > text.startIndex {
+            let before = text[text.index(before: range.lowerBound)]
+            guard !isFenceBreaker(before) else { return false }
+        }
+        if range.upperBound < text.endIndex {
+            let after = text[range.upperBound]
+            guard !isFenceBreaker(after) else { return false }
+        }
+        return true
+    }
+
+    /// A letter, digit, combining mark or hyphen: characters that must not sit immediately
+    /// next to a match, so a trigger never fires as a prefix, suffix or interior slice of a
+    /// longer word. Apostrophes (straight or curly) are punctuation, not any of these, so
+    /// they are boundaries and possessives get corrected.
+    private static func isFenceBreaker(_ character: Character) -> Bool {
+        if character == "-" { return true }
+        for scalar in character.unicodeScalars {
+            switch scalar.properties.generalCategory {
+            case .uppercaseLetter, .lowercaseLetter, .titlecaseLetter, .modifierLetter, .otherLetter,
+                 .decimalNumber,
+                 .nonspacingMark, .spacingMark, .enclosingMark:
+                return true
+            default:
+                continue
+            }
+        }
+        return false
+    }
+}
