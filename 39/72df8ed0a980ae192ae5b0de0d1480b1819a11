@@ -1,0 +1,27 @@
+docs/SPEC.md
+  s_eebd3ef0b290cc::t_268b2ad0c8477c 1,5-6,10-13,34-35,49,58-59,71-72,78-82,89,98,103,106-108,112-113,115,125-126,177-181,185-186,210-212,219,225-226,234-244,251,258-264,271-272,276-319,324-329,333-337,339-347,350,353-358,362-445,452,465-476,489-495,516-530,533-557,560-585,588-597,599-601,606-633,651,654-657,667,673-687,689-733,742-747,756-763,772,810-821,827-839,842-846,848-854,868-893,895-897,913-916,923-930,938,940,942-944,948-949,958-961,967-968,978-980
+Package.swift
+  s_eebd3ef0b290cc::t_0a3b58c966226c 34-39
+Tests/SottoAppTests/PlaceholderTests.swift
+  s_eebd3ef0b290cc::t_69ac0f75d72a4e 1-6
+Tests/SottoDictionaryTests/vectors.json
+  s_eebd3ef0b290cc::t_fa1c84491c7e08 1-132
+docs/reviews/2026-09-01-codex-spec-review.md
+  s_eebd3ef0b290cc::t_1793ce51ef6b9b 1-109
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "3972df8ed0a980ae192ae5b0de0d1480b1819a11",
+  "prompts": {},
+  "sessions": {
+    "s_eebd3ef0b290cc": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "92b309ea-9204-4668-a7f0-b7b05be4b19a",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Conrad <conne_95@msn.com>"
+    }
+  }
+}
