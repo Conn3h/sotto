@@ -1,0 +1,31 @@
+Tests/SottoAppTests/HUDPanelTests.swift
+  s_eebd3ef0b290cc::t_f7f09d82a174d8 1-56
+Sources/Sotto/UI/DesignSystem.swift
+  s_eebd3ef0b290cc::t_4859f2dae16e44 201-217
+  s_eebd3ef0b290cc::t_8c00e3ed9d70a1 163-167
+Sources/Sotto/UI/HUDView.swift
+  s_eebd3ef0b290cc::t_633cda1607e3d5 1-132
+Sources/Sotto/UI/HUDPanel.swift
+  s_eebd3ef0b290cc::t_00f7f1f5f3999f 1-86
+Sources/Sotto/App/SottoApp.swift
+  s_eebd3ef0b290cc::t_eb96649896f11e 94-97
+  s_eebd3ef0b290cc::t_0b007f05e6e636 86-93,98-109
+  s_eebd3ef0b290cc::t_135f6f13486258 2
+  s_eebd3ef0b290cc::t_ce0210514f8cf6 23-26,35-37
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "1dd3391d40c5cc3e33e7392b3de953dd3c575eb1",
+  "prompts": {},
+  "sessions": {
+    "s_eebd3ef0b290cc": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "92b309ea-9204-4668-a7f0-b7b05be4b19a",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Conrad <conne_95@msn.com>"
+    }
+  }
+}
