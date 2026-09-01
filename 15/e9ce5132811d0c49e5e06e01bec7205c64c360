@@ -1,0 +1,30 @@
+Tests/SottoTextTests/CleanupGuardTests.swift
+  s_eebd3ef0b290cc::t_8e72b98a5dc7e4 1-87
+Tests/SottoTextTests/RuleBasedFormatterTests.swift
+  s_eebd3ef0b290cc::t_5d5a95a46a0733 1-173
+Sources/SottoText/TextFormatter.swift
+  s_eebd3ef0b290cc::t_afb83954b770d2 1-2
+  s_eebd3ef0b290cc::t_ee6a19b473e526 3-20
+Tests/SottoTextTests/PassthroughFormatterTests.swift
+  s_eebd3ef0b290cc::t_f16e3326d5d8a0 1-49
+Sources/SottoText/RuleBasedFormatter.swift
+  s_eebd3ef0b290cc::t_3ad106c5bdb373 1-278
+Sources/SottoText/CleanupGuard.swift
+  s_eebd3ef0b290cc::t_d5c7793be92347 1-113
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "15e9ce5132811d0c49e5e06e01bec7205c64c360",
+  "prompts": {},
+  "sessions": {
+    "s_eebd3ef0b290cc": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "92b309ea-9204-4668-a7f0-b7b05be4b19a",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Conrad <conne_95@msn.com>"
+    }
+  }
+}
