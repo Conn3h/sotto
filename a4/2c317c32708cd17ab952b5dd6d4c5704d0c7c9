@@ -1,0 +1,47 @@
+docs/SPEC.md
+  s_eebd3ef0b290cc::t_5c9486442da7cf 1-696
+CLAUDE.md
+  s_eebd3ef0b290cc::t_e9bee6522c2e59 1-40
+README.md
+  s_eebd3ef0b290cc::t_2ac4a5a7bfc783 1-30
+.gitignore
+  s_eebd3ef0b290cc::t_5b248bf244e37c 1-7
+Makefile
+  s_eebd3ef0b290cc::t_8737dc5ee0ce61 1-63
+Package.swift
+  s_eebd3ef0b290cc::t_c4389c7d106fcb 1-42
+Resources/Info.plist
+  s_eebd3ef0b290cc::t_fd593999a5e757 1-31
+Resources/Sotto.entitlements
+  s_eebd3ef0b290cc::t_c0cc0588e2d356 1-10
+Sources/Sotto/App/SottoApp.swift
+  s_eebd3ef0b290cc::t_4e98950c4ba3c0 1-22
+Sources/Sotto/Support/Log.swift
+  s_eebd3ef0b290cc::t_d50dc065581b56 1-16
+Sources/SottoDictionary/SottoDictionary.swift
+  s_eebd3ef0b290cc::t_b49669da984adc 1-2
+Sources/SottoText/SottoText.swift
+  s_eebd3ef0b290cc::t_009d0c6984d629 1-2
+Tests/SottoDictionaryTests/PlaceholderTests.swift
+  s_eebd3ef0b290cc::t_7c5b1c576bf555 1-6
+Tests/SottoDictionaryTests/vectors.json
+  s_eebd3ef0b290cc::t_25964d44c0605e 1
+Tests/SottoTextTests/PlaceholderTests.swift
+  s_eebd3ef0b290cc::t_04803516b53dc6 1-6
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "a42c317c32708cd17ab952b5dd6d4c5704d0c7c9",
+  "prompts": {},
+  "sessions": {
+    "s_eebd3ef0b290cc": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "92b309ea-9204-4668-a7f0-b7b05be4b19a",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Conrad <conne_95@msn.com>"
+    }
+  }
+}
