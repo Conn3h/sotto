@@ -1,0 +1,21 @@
+Sources/Sotto/UI/DesignSystem.swift
+  s_eebd3ef0b290cc::t_86236cb6a553b7 1-197
+Sources/Sotto/UI/TokenSheet.swift
+  s_eebd3ef0b290cc::t_032312016f1bc8 1-163
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "03fe185f684c08d90bd4da6498417606696297bb",
+  "prompts": {},
+  "sessions": {
+    "s_eebd3ef0b290cc": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "92b309ea-9204-4668-a7f0-b7b05be4b19a",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Conrad <conne_95@msn.com>"
+    }
+  }
+}
