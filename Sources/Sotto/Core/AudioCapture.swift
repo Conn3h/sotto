@@ -1,0 +1,247 @@
+import Accelerate
+import AVFoundation
+import Foundation
+import Synchronization
+
+/// Microphone capture. Buffers are delivered in the engine's preferred format, copied so
+/// they can safely leave the audio thread, alongside a 0...1 meter level.
+protocol AudioCapturing: AnyObject, Sendable {
+    func start(
+        outputFormat: AVAudioFormat,
+        onBuffer: @escaping @Sendable (AudioChunk) -> Void,
+        onLevel: @escaping @Sendable (Float) -> Void
+    ) throws
+    func stop()
+}
+
+enum AudioCaptureError: LocalizedError {
+    case noInputDevice
+    case converterUnavailable(from: String, to: String)
+
+    var errorDescription: String? {
+        switch self {
+        case .noInputDevice:
+            "No microphone is available."
+        case .converterUnavailable(let from, let to):
+            "Audio cannot be converted from \(from) to \(to)."
+        }
+    }
+}
+
+/// `AVAudioEngine` input tap in the node's native format, converted to the engine's format
+/// when they differ. Nothing mutable is shared with the audio thread: `start()` builds one
+/// immutable `Session` that the tap closure captures, and the class itself only holds the
+/// engine and a running flag behind a lock that the caller's thread takes.
+final class AudioCapture: AudioCapturing {
+    private static let tapFrameCount: AVAudioFrameCount = 2048
+    /// Extra output frames beyond frames x rate ratio, so a resampler's rounding never
+    /// truncates a buffer.
+    private static let conversionHeadroomFrames: AVAudioFrameCount = 64
+
+    /// Everything the tap closure needs, fixed at `start()`. The converter is a reference
+    /// type, but after `start()` returns only the audio thread touches it.
+    private struct Session {
+        let converter: AVAudioConverter?
+        let outputFormat: AVAudioFormat
+        let onBuffer: @Sendable (AudioChunk) -> Void
+        let onLevel: @Sendable (Float) -> Void
+
+        func process(_ buffer: AVAudioPCMBuffer) {
+            onLevel(AudioCapture.meterLevel(of: buffer))
+            let delivered: AVAudioPCMBuffer?
+            if let converter {
+                delivered = AudioCapture.convert(buffer, with: converter, to: outputFormat)
+            } else {
+                delivered = AudioCapture.deepCopy(buffer)
+            }
+            guard let delivered, delivered.frameLength > 0 else {
+                return
+            }
+            onBuffer(AudioChunk(buffer: delivered))
+        }
+    }
+
+    private struct Storage {
+        var engine: AVAudioEngine?
+        var isRunning = false
+    }
+
+    private let storage = Mutex(Storage())
+
+    init() {}
+
+    func start(
+        outputFormat: AVAudioFormat,
+        onBuffer: @escaping @Sendable (AudioChunk) -> Void,
+        onLevel: @escaping @Sendable (Float) -> Void
+    ) throws {
+        try storage.withLock { storage in
+            if storage.isRunning {
+                Log.audio.info("capture start ignored: already running")
+                return
+            }
+            let engine = AVAudioEngine()
+            let input = engine.inputNode
+            let native = input.outputFormat(forBus: 0)
+            guard native.sampleRate > 0, native.channelCount > 0 else {
+                Log.audio.error("capture start failed: input node reports no usable format")
+                throw AudioCaptureError.noInputDevice
+            }
+            let needsConversion = native != outputFormat
+            var converter: AVAudioConverter?
+            if needsConversion {
+                guard let made = AVAudioConverter(from: native, to: outputFormat) else {
+                    Log.audio.error(
+                        "capture start failed: no converter from \(native.description, privacy: .public) to \(outputFormat.description, privacy: .public)"
+                    )
+                    throw AudioCaptureError.converterUnavailable(
+                        from: native.description, to: outputFormat.description
+                    )
+                }
+                converter = made
+            }
+            if native.commonFormat != .pcmFormatFloat32 {
+                Log.audio.error(
+                    "native input format is not Float32 (\(native.commonFormat.rawValue, privacy: .public)); the level meter will stay at zero"
+                )
+            }
+            let session = Session(
+                converter: converter, outputFormat: outputFormat, onBuffer: onBuffer, onLevel: onLevel
+            )
+            input.installTap(onBus: 0, bufferSize: Self.tapFrameCount, format: native) { buffer, _ in
+                session.process(buffer)
+            }
+            engine.prepare()
+            do {
+                try engine.start()
+            } catch {
+                input.removeTap(onBus: 0)
+                Log.audio.error("audio engine start failed: \(error.localizedDescription, privacy: .public)")
+                throw error
+            }
+            storage.engine = engine
+            storage.isRunning = true
+            Log.audio.info(
+                "capture start: native \(native.sampleRate, privacy: .public) Hz x\(native.channelCount, privacy: .public) -> engine \(outputFormat.sampleRate, privacy: .public) Hz x\(outputFormat.channelCount, privacy: .public), converting: \(needsConversion, privacy: .public)"
+            )
+        }
+    }
+
+    func stop() {
+        storage.withLock { storage in
+            guard storage.isRunning, let engine = storage.engine else {
+                return
+            }
+            engine.inputNode.removeTap(onBus: 0)
+            engine.stop()
+            storage.engine = nil
+            storage.isRunning = false
+            Log.audio.info("capture stop")
+        }
+    }
+
+    // MARK: Buffer handling (audio thread)
+
+    /// The engine reuses the buffer it hands a tap the moment the callback returns, so a
+    /// buffer that leaves the audio thread must be a private copy.
+    private static func deepCopy(_ source: AVAudioPCMBuffer) -> AVAudioPCMBuffer? {
+        guard let copy = AVAudioPCMBuffer(
+            pcmFormat: source.format, frameCapacity: max(source.frameLength, 1)
+        ) else {
+            Log.audio.error("buffer copy failed: allocation for \(source.frameLength, privacy: .public) frames")
+            return nil
+        }
+        copy.frameLength = source.frameLength
+        let sourceList = UnsafeMutableAudioBufferListPointer(
+            UnsafeMutablePointer(mutating: source.audioBufferList)
+        )
+        let copyList = UnsafeMutableAudioBufferListPointer(copy.mutableAudioBufferList)
+        for (from, to) in zip(sourceList, copyList) {
+            guard let fromData = from.mData, let toData = to.mData else {
+                continue
+            }
+            memcpy(toData, fromData, Int(min(from.mDataByteSize, to.mDataByteSize)))
+        }
+        return copy
+    }
+
+    /// Converts one native buffer into a freshly allocated buffer in the engine's format.
+    /// The converter pulls input through a block that hands the buffer over exactly once
+    /// and then reports that no more data is available for this call.
+    private static func convert(
+        _ source: AVAudioPCMBuffer,
+        with converter: AVAudioConverter,
+        to outputFormat: AVAudioFormat
+    ) -> AVAudioPCMBuffer? {
+        let ratio = outputFormat.sampleRate / source.format.sampleRate
+        let scaled = (Double(source.frameLength) * ratio).rounded(.up)
+        let capacity = AVAudioFrameCount(scaled) + conversionHeadroomFrames
+        guard let output = AVAudioPCMBuffer(pcmFormat: outputFormat, frameCapacity: capacity) else {
+            Log.audio.error("conversion failed: allocation for \(capacity, privacy: .public) frames")
+            return nil
+        }
+        let input = AudioChunk(buffer: source)
+        let handoff = SingleHandoff()
+        var conversionError: NSError?
+        let status = converter.convert(to: output, error: &conversionError) { _, outStatus in
+            if handoff.take() {
+                outStatus.pointee = .haveData
+                return input.buffer
+            }
+            outStatus.pointee = .noDataNow
+            return nil
+        }
+        switch status {
+        case .haveData, .inputRanDry, .endOfStream:
+            return output
+        case .error:
+            Log.audio.error(
+                "conversion failed: \(conversionError?.localizedDescription ?? "unknown error", privacy: .public)"
+            )
+            return nil
+        @unknown default:
+            Log.audio.error("conversion returned unknown status \(status.rawValue, privacy: .public)")
+            return nil
+        }
+    }
+
+    /// RMS of the buffer mapped from roughly -50...0 dBFS onto 0...1, so quiet speech still
+    /// moves the meter. Non-float buffers read as silence (logged once at start).
+    private static func meterLevel(of buffer: AVAudioPCMBuffer) -> Float {
+        guard let channels = buffer.floatChannelData, buffer.frameLength > 0 else {
+            return 0
+        }
+        let frames = Int(buffer.frameLength)
+        let sampleCount = buffer.format.isInterleaved ? frames * Int(buffer.format.channelCount) : frames
+        var rms: Float = 0
+        vDSP_rmsqv(channels[0], 1, &rms, vDSP_Length(sampleCount))
+        return meterLevel(rms: rms)
+    }
+
+    private static let meterFloorDecibels: Float = -50
+
+    static func meterLevel(rms: Float) -> Float {
+        guard rms > 0, rms.isFinite else {
+            return 0
+        }
+        let decibels = 20 * log10(rms)
+        let normalized = (decibels - meterFloorDecibels) / -meterFloorDecibels
+        return min(max(normalized, 0), 1)
+    }
+}
+
+/// A one-shot flag for the converter's pull-style input block, which must be `@Sendable`
+/// and so cannot capture a local `var`.
+private final class SingleHandoff: Sendable {
+    private let taken = Mutex(false)
+
+    func take() -> Bool {
+        taken.withLock { taken in
+            if taken {
+                return false
+            }
+            taken = true
+            return true
+        }
+    }
+}
