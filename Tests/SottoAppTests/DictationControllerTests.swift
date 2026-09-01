@@ -1,0 +1,466 @@
+import AVFoundation
+import CoreGraphics
+import Foundation
+import Testing
+@testable import Sotto
+
+private let microphoneDeniedMessage =
+    "Microphone access is off. Enable it in System Settings > Privacy & Security > Microphone."
+
+@MainActor
+@Suite(.serialized)
+struct DictationControllerTests {
+    init() {
+        // Keep the suite silent; the controller reads this per press.
+        Settings.shared.soundEnabled = false
+    }
+
+    // MARK: Happy path
+
+    @Test func pressListensReleasesAndFiresOneCallback() async throws {
+        let engine = FakeEngine(.init(finalText: "hello world"))
+        let harness = Harness(engines: [engine])
+        #expect(harness.controller.activate())
+        #expect(harness.state == .idle)
+        #expect(harness.hotkey.startCalls == 1)
+
+        harness.hotkey.press()
+        #expect(harness.state == .starting)
+        #expect(harness.state.isActive)
+        #expect(harness.state.showsHUD)
+        #expect(harness.controller.holdStartedAt != nil)
+        #expect(harness.controller.transcript.isEmpty)
+
+        try await settle("listening") { harness.state == .listening }
+        #expect(harness.capture.startCalls == 1)
+        #expect(harness.capture.isRunning)
+
+        await engine.publish("hel")
+        try await settle("live transcript") { harness.controller.transcript == "hel" }
+
+        harness.hotkey.release()
+        #expect(harness.state == .finishing)
+        #expect(harness.capture.stopCalls >= 1)
+
+        try await settle("idle") { harness.state == .idle }
+        #expect(harness.received.count == 1)
+        #expect(harness.received.first?.text == "hello world")
+        #expect(harness.received.first?.utterance.source == .hotkey)
+        #expect((harness.received.first?.utterance.heldSeconds ?? -1) >= 0)
+        #expect(harness.controller.transcript == "hello world")
+        #expect(harness.controller.holdStartedAt == nil)
+        #expect(harness.controller.liveTaskCount == 0)
+        #expect(await engine.finishCalls == 1)
+        #expect(await engine.cancelCalls == 0)
+        #expect(!harness.state.showsHUD)
+    }
+
+    // MARK: Release while setup is suspended
+
+    @Test func releaseWhileSuspendedAtMicrophoneRequest() async throws {
+        let microphoneGate = Gate(open: false)
+        let harness = Harness(microphoneGate: microphoneGate)
+        harness.controller.activate()
+
+        harness.hotkey.press()
+        await microphoneGate.waitForArrival()
+        #expect(harness.state == .starting)
+
+        harness.hotkey.release()
+        #expect(harness.state == .finishing)
+        #expect(!harness.capture.emitBuffer())
+
+        await microphoneGate.open()
+        try await settle("idle") { harness.state == .idle }
+        #expect(harness.factory.made.isEmpty)
+        #expect(harness.capture.startCalls == 0)
+        #expect(harness.received.isEmpty)
+        #expect(harness.controller.liveTaskCount == 0)
+
+        try await harness.pressAndListen()
+        #expect(harness.factory.made.count == 1)
+        #expect(harness.controller.transcript.isEmpty)
+        #expect(harness.capture.startCalls == 1)
+        try await harness.releaseAndIdle()
+        #expect(harness.received.count == 1)
+    }
+
+    @Test func releaseWhileSuspendedAtEngineStart() async throws {
+        let startGate = Gate(open: false)
+        let first = FakeEngine(.init(finalText: "stale", startGate: startGate))
+        let second = FakeEngine(.init(finalText: "fresh"))
+        let harness = Harness(engines: [first, second])
+        harness.controller.activate()
+
+        harness.hotkey.press()
+        await startGate.waitForArrival()
+        #expect(harness.factory.made.count == 1)
+
+        harness.hotkey.release()
+        #expect(harness.state == .finishing)
+        #expect(harness.capture.startCalls == 0)
+        #expect(!harness.capture.emitBuffer())
+
+        await startGate.open()
+        try await settle("idle") { harness.state == .idle }
+        #expect(harness.controller.liveTaskCount == 0)
+        #expect(harness.capture.startCalls == 0)
+        #expect(await first.fedFrameLengths.isEmpty)
+        #expect(await first.terminalCalls == 1)
+        #expect(harness.received.isEmpty)
+        #expect(harness.controller.transcript.isEmpty)
+
+        try await harness.pressAndListen()
+        #expect(harness.factory.made.count == 2)
+        #expect(harness.factory.made[1].id == second.id)
+        #expect(harness.factory.made[1].id != first.id)
+        #expect(harness.controller.transcript.isEmpty)
+        #expect(await first.terminalCalls == 1)
+
+        await second.publish("fre")
+        try await settle("fresh transcript") { harness.controller.transcript == "fre" }
+        try await harness.releaseAndIdle()
+        #expect(harness.received.count == 1)
+        #expect(harness.received.first?.text == "fresh")
+    }
+
+    @Test func releaseWhileSuspendedAtPreferredInputFormat() async throws {
+        let formatGate = Gate(open: false)
+        let first = FakeEngine(.init(finalText: "stale", formatGate: formatGate))
+        let second = FakeEngine(.init(finalText: "fresh"))
+        let harness = Harness(engines: [first, second])
+        harness.controller.activate()
+
+        harness.hotkey.press()
+        await formatGate.waitForArrival()
+        #expect(await first.startCalls == 1)
+
+        harness.hotkey.release()
+        #expect(harness.state == .finishing)
+        #expect(harness.capture.startCalls == 0)
+
+        await formatGate.open()
+        try await settle("idle") { harness.state == .idle }
+        #expect(harness.controller.liveTaskCount == 0)
+        #expect(harness.capture.startCalls == 0)
+        #expect(!harness.capture.emitBuffer())
+        #expect(await first.fedFrameLengths.isEmpty)
+        #expect(await first.terminalCalls == 1)
+        #expect(harness.received.isEmpty)
+
+        try await harness.pressAndListen()
+        #expect(harness.factory.made.count == 2)
+        #expect(harness.factory.made[1].id == second.id)
+        #expect(harness.controller.transcript.isEmpty)
+        #expect(harness.capture.startCalls == 1)
+        try await harness.releaseAndIdle()
+        #expect(harness.received.count == 1)
+        #expect(harness.received.first?.text == "fresh")
+        #expect(await first.terminalCalls == 1)
+    }
+
+    // MARK: Terminal-event discipline
+
+    @Test func duplicateReleaseFiresOneCallback() async throws {
+        let engine = FakeEngine()
+        let harness = Harness(engines: [engine])
+        harness.controller.activate()
+        try await harness.pressAndListen()
+
+        harness.hotkey.release()
+        harness.hotkey.release()
+        try await settle("idle") { harness.state == .idle }
+        #expect(harness.received.count == 1)
+        #expect(await engine.finishCalls == 1)
+        #expect(harness.controller.liveTaskCount == 0)
+    }
+
+    @Test func pressWhileFinishingIsIgnored() async throws {
+        let finishGate = Gate(open: false)
+        let engine = FakeEngine(.init(finishGate: finishGate))
+        let harness = Harness(engines: [engine])
+        harness.controller.activate()
+        try await harness.pressAndListen()
+
+        harness.hotkey.release()
+        await finishGate.waitForArrival()
+        #expect(harness.state == .finishing)
+
+        harness.hotkey.press()
+        #expect(harness.state == .finishing)
+        #expect(harness.factory.made.count == 1)
+        #expect(harness.capture.startCalls == 1)
+
+        await finishGate.open()
+        try await settle("idle") { harness.state == .idle }
+        #expect(harness.received.count == 1)
+        #expect(harness.factory.made.count == 1)
+    }
+
+    @Test func failureAfterReleaseIsIgnored() async throws {
+        let finishGate = Gate(open: false)
+        let engine = FakeEngine(.init(finalText: "unused", finishGate: finishGate))
+        let harness = Harness(engines: [engine], errorDisplayDuration: .seconds(5))
+        harness.controller.activate()
+        try await harness.pressAndListen()
+        await engine.publish("partial")
+        try await settle("partial transcript") { harness.controller.transcript == "partial" }
+
+        harness.hotkey.release()
+        await finishGate.waitForArrival()
+        #expect(harness.state == .finishing)
+
+        // The analyzer dies while the release is already being finished: the release wins.
+        await engine.failStream(TestError("late failure"))
+        try await Task.sleep(for: .milliseconds(20))
+        #expect(harness.state == .finishing)
+
+        await finishGate.open()
+        try await settle("idle") { harness.state == .idle }
+        #expect(harness.received.count == 1)
+        #expect(harness.received.first?.text == "partial")
+        #expect(await engine.cancelCalls == 0)
+        #expect(harness.controller.liveTaskCount == 0)
+    }
+
+    @Test func deactivateWhileFinishingKeepsTheRelease() async throws {
+        let finishGate = Gate(open: false)
+        let engine = FakeEngine(.init(finalText: "kept", finishGate: finishGate))
+        let harness = Harness(engines: [engine])
+        harness.controller.activate()
+        try await harness.pressAndListen()
+
+        harness.hotkey.release()
+        await finishGate.waitForArrival()
+        harness.controller.deactivate()
+        #expect(harness.hotkey.stopCalls == 1)
+        #expect(harness.state == .finishing)
+
+        await finishGate.open()
+        try await settle("idle") { harness.state == .idle }
+        #expect(harness.received.count == 1)
+        #expect(harness.received.first?.text == "kept")
+        #expect(await engine.finishCalls == 1)
+        #expect(await engine.cancelCalls == 0)
+        #expect(harness.controller.liveTaskCount == 0)
+    }
+
+    // MARK: Failures
+
+    @Test func engineStartFailureShowsErrorThenIdle() async throws {
+        let engine = FakeEngine(.init(startError: TestError("boom")))
+        let harness = Harness(engines: [engine], errorDisplayDuration: .milliseconds(80))
+        harness.controller.activate()
+
+        harness.hotkey.press()
+        try await settle("error state") { harness.state == .error("boom") }
+        #expect(harness.state.showsHUD)
+        #expect(!harness.state.isActive)
+        #expect(harness.capture.startCalls == 0)
+        #expect(harness.controller.holdStartedAt == nil)
+
+        try await settle("idle after display") { harness.state == .idle }
+        #expect(harness.received.isEmpty)
+        #expect(await engine.cancelCalls == 1)
+        #expect(await engine.finishCalls == 0)
+        #expect(harness.controller.liveTaskCount == 0)
+    }
+
+    @Test func snapshotStreamFailureShowsErrorAndStopsCapture() async throws {
+        let engine = FakeEngine()
+        let harness = Harness(engines: [engine], errorDisplayDuration: .seconds(5))
+        harness.controller.activate()
+        try await harness.pressAndListen()
+        let stopsBefore = harness.capture.stopCalls
+
+        await engine.failStream(TestError("analyzer died"))
+        try await settle("error state") { harness.state == .error("analyzer died") }
+        #expect(harness.capture.stopCalls > stopsBefore)
+        #expect(!harness.capture.isRunning)
+        #expect(harness.received.isEmpty)
+        #expect(await engine.cancelCalls == 1)
+        #expect(await engine.finishCalls == 0)
+        #expect(harness.controller.liveTaskCount == 0)
+    }
+
+    @Test func microphoneDeniedShowsMessageWithoutEngine() async throws {
+        let harness = Harness(microphoneAllowed: false, errorDisplayDuration: .seconds(5))
+        harness.controller.activate()
+
+        harness.hotkey.press()
+        try await settle("error state") { harness.state == .error(microphoneDeniedMessage) }
+        #expect(harness.factory.made.isEmpty)
+        #expect(harness.capture.startCalls == 0)
+        #expect(harness.received.isEmpty)
+        #expect(harness.controller.liveTaskCount == 0)
+    }
+
+    @Test func pressFromErrorStartsANewUtterance() async throws {
+        let harness = Harness(microphoneAllowed: false, errorDisplayDuration: .seconds(5))
+        harness.controller.activate()
+        harness.hotkey.press()
+        try await settle("error state") { harness.state == .error(microphoneDeniedMessage) }
+
+        harness.hotkey.press()
+        #expect(harness.state == .starting)
+        try await settle("second error") {
+            harness.state == .error(microphoneDeniedMessage) && harness.controller.liveTaskCount == 0
+        }
+    }
+
+    // MARK: Lifecycle
+
+    @Test func deactivateDuringListeningCancelsEngine() async throws {
+        let engine = FakeEngine()
+        let harness = Harness(engines: [engine])
+        harness.controller.activate()
+        try await harness.pressAndListen()
+
+        harness.controller.deactivate()
+        #expect(harness.hotkey.stopCalls == 1)
+        #expect(!harness.hotkey.isRunning)
+        try await settle("idle") { harness.state == .idle }
+        #expect(await engine.cancelCalls == 1)
+        #expect(await engine.finishCalls == 0)
+        #expect(harness.received.isEmpty)
+        #expect(!harness.capture.isRunning)
+        #expect(harness.controller.liveTaskCount == 0)
+    }
+
+    @Test func reloadHotkeyDuringListeningEndsAsRelease() async throws {
+        let previousKey = Settings.shared.pushToTalkKey
+        defer { Settings.shared.pushToTalkKey = previousKey }
+        Settings.shared.pushToTalkKey = .rightOption
+
+        let engine = FakeEngine(.init(finalText: "kept"))
+        let harness = Harness(engines: [engine])
+        harness.controller.activate()
+        #expect(harness.hotkey.key == .rightOption)
+        try await harness.pressAndListen()
+
+        Settings.shared.pushToTalkKey = .fn
+        #expect(harness.controller.reloadHotkey())
+        #expect(harness.hotkey.stopCalls == 1)
+        #expect(harness.hotkey.startCalls == 2)
+        #expect(harness.hotkey.key == .fn)
+        #expect(harness.hotkey.keysAtStart == [.rightOption, .fn])
+
+        try await settle("idle") { harness.state == .idle }
+        #expect(harness.received.count == 1)
+        #expect(harness.received.first?.text == "kept")
+        #expect(await engine.finishCalls == 1)
+        #expect(harness.controller.liveTaskCount == 0)
+    }
+
+    // MARK: Audio path
+
+    @Test func fiftyBuffersArriveInOrder() async throws {
+        let engine = FakeEngine()
+        let harness = Harness(engines: [engine])
+        harness.controller.activate()
+        try await harness.pressAndListen()
+
+        for index in 1...50 {
+            #expect(harness.capture.emitBuffer(frameLength: AVAudioFrameCount(index)))
+        }
+        try await harness.releaseAndIdle()
+        #expect(await engine.fedFrameLengths == (1...50).map { AVAudioFrameCount($0) })
+    }
+
+    @Test func blankFinalTranscriptSkipsCallback() async throws {
+        let engine = FakeEngine(.init(finalText: "  \n "))
+        let harness = Harness(engines: [engine])
+        harness.controller.activate()
+        try await harness.pressAndListen()
+        try await harness.releaseAndIdle()
+        #expect(harness.received.isEmpty)
+        #expect(await engine.finishCalls == 1)
+        #expect(harness.controller.liveTaskCount == 0)
+    }
+
+    @Test func staleLevelCallbackDoesNotChangeLevel() async throws {
+        let harness = Harness()
+        harness.controller.activate()
+        try await harness.pressAndListen()
+        #expect(harness.controller.level == 0)
+
+        #expect(harness.capture.emitLevel(0.8))
+        try await settle("level rises") { harness.controller.level > 0 }
+        let raised = harness.controller.level
+        #expect(abs(raised - 0.8 * 0.35) < 0.001)
+
+        try await harness.releaseAndIdle()
+        #expect(harness.controller.level == 0)
+
+        #expect(harness.capture.emitStaleLevel(1.0))
+        try await Task.sleep(for: .milliseconds(30))
+        #expect(harness.controller.level == 0)
+
+        try await harness.pressAndListen()
+        #expect(harness.capture.emitStaleLevel(1.0))
+        try await Task.sleep(for: .milliseconds(30))
+        #expect(harness.controller.level == 0)
+
+        #expect(harness.capture.emitLevel(0.5))
+        try await settle("current level applies") { harness.controller.level > 0 }
+        try await harness.releaseAndIdle()
+    }
+
+    @Test func buttonSourceReachesCallback() async throws {
+        let engine = FakeEngine(.init(finalText: "from the window"))
+        let harness = Harness(engines: [engine])
+
+        harness.controller.startButtonRecording()
+        try await settle("listening") { harness.state == .listening }
+        harness.controller.stopButtonRecording()
+        try await settle("idle") { harness.state == .idle }
+
+        #expect(harness.received.count == 1)
+        #expect(harness.received.first?.text == "from the window")
+        #expect(harness.received.first?.utterance.source == .button)
+        #expect(harness.hotkey.startCalls == 0)
+    }
+
+    @Test func captureStartFailureShowsError() async throws {
+        let engine = FakeEngine()
+        let harness = Harness(engines: [engine], errorDisplayDuration: .seconds(5))
+        harness.capture.failNextStart(with: TestError("no input device"))
+        harness.controller.activate()
+
+        harness.hotkey.press()
+        try await settle("error state") { harness.state == .error("no input device") }
+        #expect(await engine.cancelCalls == 1)
+        #expect(harness.received.isEmpty)
+        #expect(harness.controller.liveTaskCount == 0)
+    }
+}
+
+@Suite
+struct PushToTalkKeyTests {
+    @Test func keyCodesMatchTheHIToolboxConstants() {
+        #expect(PushToTalkKey.rightOption.keyCode == 61)
+        #expect(PushToTalkKey.rightCommand.keyCode == 54)
+        #expect(PushToTalkKey.fn.keyCode == 63)
+    }
+
+    @Test func flagsAreTheDeviceSpecificBits() {
+        #expect(PushToTalkKey.rightOption.flag.rawValue == 0x40)
+        #expect(PushToTalkKey.rightCommand.flag.rawValue == 0x10)
+        #expect(PushToTalkKey.fn.flag == .maskSecondaryFn)
+        // The public Option mask cannot tell the two Option keys apart.
+        #expect(PushToTalkKey.rightOption.flag != .maskAlternate)
+    }
+
+    @Test func onlyModifiersAreSwallowed() {
+        #expect(PushToTalkKey.rightOption.consumesEvent)
+        #expect(PushToTalkKey.rightCommand.consumesEvent)
+        #expect(!PushToTalkKey.fn.consumesEvent)
+    }
+
+    @Test func displayNames() {
+        #expect(PushToTalkKey.rightOption.displayName == "Right \u{2325}")
+        #expect(PushToTalkKey.rightCommand.displayName == "Right \u{2318}")
+        #expect(PushToTalkKey.fn.displayName == "fn")
+        #expect(PushToTalkKey.allCases.count == 3)
+    }
+}
