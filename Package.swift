@@ -32,6 +32,12 @@ let package = Package(
             swiftSettings: [.swiftLanguageMode(.v6)]
         ),
         .testTarget(
+            name: "SottoAppTests",
+            dependencies: ["Sotto"],
+            path: "Tests/SottoAppTests",
+            swiftSettings: [.swiftLanguageMode(.v6)]
+        ),
+        .testTarget(
             name: "SottoDictionaryTests",
             dependencies: ["SottoDictionary"],
             path: "Tests/SottoDictionaryTests",
