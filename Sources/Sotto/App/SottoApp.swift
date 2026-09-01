@@ -75,4 +75,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }
     }
+
+    /// The dictionary file may have been hand-edited while another app was frontmost.
+    func applicationDidBecomeActive(_ notification: Notification) {
+        DictionaryStore.shared.reloadFromDisk()
+    }
 }

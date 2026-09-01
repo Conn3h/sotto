@@ -5,20 +5,22 @@ import Foundation
 @MainActor
 final class AppComposition {
     let controller: DictationController
+    let pipeline: UtterancePipeline
+    // hud is added by milestone B2
 
     init() {
+        let pipeline = UtterancePipeline()
         let controller = DictationController(
             hotkey: HotkeyMonitor(),
             capture: AudioCapture(),
             requestMicrophone: { await Permissions.requestMicrophone() },
-            makeEngine: { AppleSpeechEngine(locale: .current, biasPhrases: []) }
+            // Read per press so a dictionary edit biases the very next hold.
+            makeEngine: { AppleSpeechEngine(locale: .current, biasPhrases: DictionaryStore.shared.biasPhrases) }
         )
-        // Batch A1 only logs; the pipeline replaces this closure in batch B1.
-        controller.onFinalTranscript = { text, utterance in
-            Log.app.info(
-                "final transcript: \(text.count, privacy: .public) chars (source: \(utterance.source.rawValue, privacy: .public), held \(utterance.heldSeconds, privacy: .public)s)"
-            )
+        controller.onFinalTranscript = { raw, utterance in
+            await pipeline.process(raw: raw, utterance: utterance)
         }
         self.controller = controller
+        self.pipeline = pipeline
     }
 }
