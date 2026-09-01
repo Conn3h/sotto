@@ -1,0 +1,53 @@
+Sources/Sotto/App/AppComposition.swift
+  s_eebd3ef0b290cc::t_4027f958b581ad 8-9,12,17-18,20-21,24
+Sources/Sotto/App/SottoApp.swift
+  s_eebd3ef0b290cc::t_6abb68eb2db0de 2,23-26,35-37,86-114
+Sources/Sotto/Cleanup/CleanupModel.swift
+  s_eebd3ef0b290cc::t_ff58ed38675a6f 1-121
+Sources/Sotto/Cleanup/FoundationModelFormatter.swift
+  s_eebd3ef0b290cc::t_90eebba6b7926b 1-151
+Sources/Sotto/Core/TextInjector.swift
+  s_eebd3ef0b290cc::t_2ae8e5686536da 1-206
+Sources/Sotto/Core/UtterancePipeline.swift
+  s_eebd3ef0b290cc::t_a2e783286eb85f 1-108
+Sources/Sotto/Dictionary/DictionaryStore.swift
+  s_eebd3ef0b290cc::t_2c0beb20eea5c7 1-229
+Sources/Sotto/History/DictationRun.swift
+  s_eebd3ef0b290cc::t_85b3ebd2362f03 1-56
+Sources/Sotto/History/HistoryLog.swift
+  s_eebd3ef0b290cc::t_525cc257d74cd6 1-175
+Sources/Sotto/History/HistoryStore.swift
+  s_eebd3ef0b290cc::t_43b3bb4d8ce58c 1-22
+Sources/Sotto/Support/AppSupportDirectory.swift
+  s_eebd3ef0b290cc::t_17a29ab7efb293 1-12
+Sources/Sotto/UI/DesignSystem.swift
+  s_eebd3ef0b290cc::t_251f66f16f0e94 163-167,201-217
+Sources/Sotto/UI/HUDPanel.swift
+  s_eebd3ef0b290cc::t_161cfad8dc575d 1-86
+Sources/Sotto/UI/HUDView.swift
+  s_eebd3ef0b290cc::t_a4138673ae9cd5 1-132
+Tests/SottoAppTests/DictionaryStoreTests.swift
+  s_eebd3ef0b290cc::t_98bf4f4c562b5c 1-299
+Tests/SottoAppTests/FoundationModelFormatterTests.swift
+  s_eebd3ef0b290cc::t_a66dd9ee17b23d 1-163
+Tests/SottoAppTests/HUDPanelTests.swift
+  s_eebd3ef0b290cc::t_f99aa6d165a240 1-56
+Tests/SottoAppTests/HistoryLogTests.swift
+  s_eebd3ef0b290cc::t_7f7fe6069e0df4 1-183
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "9d91afc293770f2c7ae9da3744c66a92f469815d",
+  "prompts": {},
+  "sessions": {
+    "s_eebd3ef0b290cc": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "92b309ea-9204-4668-a7f0-b7b05be4b19a",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Conrad <conne_95@msn.com>"
+    }
+  }
+}
