@@ -1,0 +1,14 @@
+docs/SPEC.md
+  h_5c6432f568e8be 521-522,567
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "8622eec4439c9180a5598057fcfae368723d5dfc",
+  "prompts": {},
+  "humans": {
+    "h_5c6432f568e8be": {
+      "author": "Conrad <conne_95@msn.com>"
+    }
+  }
+}
