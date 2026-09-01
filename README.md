@@ -1,5 +1,9 @@
 # Sotto
 
+> **sotto voce** *(adverb, Italian: "under the voice")* — in a quiet voice, as if not to be overheard.
+
+Hold a key, say it under your breath, let go. Sotto writes it where you were typing.
+
 Push-to-talk dictation for macOS. Hold a key, talk, release, and cleaned-up text lands in
 whatever text field has focus. Everything runs on your Mac: Apple's on-device speech
 engine, optional on-device cleanup with Apple's Foundation Model, a personal dictionary,
@@ -25,6 +29,13 @@ Sotto notices the Accessibility grant on its own; no restart needed. Then hold
 
 Other targets: `make test`, `make app`, `make run`, `make clean`.
 
+## Privacy
+
+Nothing you say or type leaves the Mac. There is no account, no server and no analytics.
+macOS itself may download Apple's speech model for your language the first time it is needed.
+
 ## Design and status
 
-See `docs/SPEC.md` for the architecture, module contracts, and the milestone plan.
+Built clean-room from a written spec, with the modules implemented independently against it.
+See `docs/SPEC.md` for the architecture and module contracts, and `docs/reviews/` for the
+external reviews the spec and the code went through.

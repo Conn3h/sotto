@@ -25,6 +25,14 @@ Agent S1 (sonnet: UI):
 
 Deferred to spec section 11: paste-path leading space; live dictionary file watching.
 
+## Public-release prep (queued after fix batch 1; Conrad asked 2026-09-02)
+
+- Licence: Conrad's decision (MIT is the natural default for a personal app); add `LICENSE` and a line in the README.
+- README: the sotto voce definition is in (done 2026-09-02); still needed: two screenshots (main window, HUD mid-dictation; Screen Recording permission or Conrad's own capture), a short feature list, the dictionary file format, known limitations (paste path adds no leading space; Gatekeeper needs right-click Open until notarized), and a one-line credit that the reference project per-simmons/murmur-youtube inspired the design without any code being copied.
+- App icon before going public (Resources/AppIcon.icns is absent; Makefile already copies it if present).
+- Confirm the `agent/*` branches were never pushed (they are local only) and delete them locally.
+- `gh repo edit Conn3h/sotto --visibility public`, plus description and topics (macos, dictation, swift, speech-to-text, on-device).
+
 ---
 
 ## Findings as reported
