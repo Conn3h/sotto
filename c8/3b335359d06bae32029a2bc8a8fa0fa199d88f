@@ -1,0 +1,34 @@
+Tests/SottoDictionaryTests/DictionaryCorrectorBiasTests.swift
+  s_eebd3ef0b290cc::t_c9920d027a6082 1-71
+Sources/SottoDictionary/DictionaryEntry.swift
+  s_eebd3ef0b290cc::t_b9bb5f251397ac 1-45
+Sources/SottoDictionary/DictionaryWarning.swift
+  s_eebd3ef0b290cc::t_9cebaf6b6140cd 1-37
+Sources/SottoDictionary/DictionaryFile.swift
+  s_eebd3ef0b290cc::t_bf8a2f60b647b3 1-101
+Tests/SottoDictionaryTests/DictionaryWarningTests.swift
+  s_eebd3ef0b290cc::t_98b41ef2d0b4d6 1-72
+Tests/SottoDictionaryTests/VectorTests.swift
+  s_eebd3ef0b290cc::t_a7f8b637133704 1-69
+Tests/SottoDictionaryTests/DictionaryFileTests.swift
+  s_eebd3ef0b290cc::t_9b91728d7616cd 1-138
+Sources/SottoDictionary/DictionaryCorrector.swift
+  s_eebd3ef0b290cc::t_c7c37d63300477 1-117,119-203
+  s_eebd3ef0b290cc::t_99c62af4c3941a 118
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "c83b335359d06bae32029a2bc8a8fa0fa199d88f",
+  "prompts": {},
+  "sessions": {
+    "s_eebd3ef0b290cc": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "92b309ea-9204-4668-a7f0-b7b05be4b19a",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Conrad <conne_95@msn.com>"
+    }
+  }
+}
