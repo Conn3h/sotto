@@ -1,0 +1,14 @@
+Tests/SottoDictionaryTests/vectors.json
+  h_5c6432f568e8be 2-345,348-569
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "caba33e4e797d4d0f299e1dd01559f4f2e3a3ecf",
+  "prompts": {},
+  "humans": {
+    "h_5c6432f568e8be": {
+      "author": "Conrad <conne_95@msn.com>"
+    }
+  }
+}
