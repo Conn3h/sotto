@@ -1,0 +1,39 @@
+Sources/Sotto/App/AppComposition.swift
+  s_eebd3ef0b290cc::t_b43a6f4af8713a 1-24
+Sources/Sotto/Support/Settings.swift
+  s_eebd3ef0b290cc::t_d47776205b1e20 1-53
+Sources/Sotto/Support/Permissions.swift
+  s_eebd3ef0b290cc::t_b5b6bb8d6ab679 1-73
+Tests/SottoAppTests/Fakes.swift
+  s_eebd3ef0b290cc::t_981ca4d10501c9 1-370
+Tests/SottoAppTests/DictationControllerTests.swift
+  s_eebd3ef0b290cc::t_491e453ebb9e0d 1-466
+Sources/Sotto/Core/AudioCapture.swift
+  s_eebd3ef0b290cc::t_c9db4960e34c51 1-247
+Sources/Sotto/Core/HotkeyMonitor.swift
+  s_eebd3ef0b290cc::t_b679bd8d974d53 1-180
+Sources/Sotto/Speech/TranscriptionEngine.swift
+  s_eebd3ef0b290cc::t_80ec85690bad00 1-53
+Sources/Sotto/Speech/AppleSpeechEngine.swift
+  s_eebd3ef0b290cc::t_66258ffee602de 1-357
+Sources/Sotto/Core/DictationController.swift
+  s_eebd3ef0b290cc::t_b3b85ffcf2db9c 1-505
+Sources/Sotto/App/SottoApp.swift
+  s_eebd3ef0b290cc::t_651fb302bb7d2c 18-27,30-40,43-77
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "43b739ff9716b09758d0a006bf4a97656062b3ee",
+  "prompts": {},
+  "sessions": {
+    "s_eebd3ef0b290cc": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "92b309ea-9204-4668-a7f0-b7b05be4b19a",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Conrad <conne_95@msn.com>"
+    }
+  }
+}
