@@ -518,7 +518,8 @@ public enum CleanupGuard {
    a letter or digit. Must not touch words that merely contain them (`umbrella`, `hummus`,
    `ums`).
 3. **Spoken punctuation**: the whole-phrase, case-insensitive `new paragraph` → `\n\n` and
-   `new line` → `\n`.
+   `new line` → `\n`, fenced like fillers (not preceded by a letter, digit or apostrophe, not
+   followed by a letter or digit), so `renew paragraph` is left alone.
 4. **Collapse whitespace**: runs of spaces and tabs to one space; remove spaces and tabs
    immediately before or after a newline; remove spaces before `, . ! ? ; :`; three or more
    consecutive newlines to two; trim.
@@ -563,6 +564,7 @@ lowercase, then split on any character that is not a letter or digit (so `isn't`
 `a an the and or but so then s t re ll ve d m`. Checks, in order:
 
 1. **Empty**: reject if `cleaned` has no content words, or `original` has no content words.
+   Reason: `empty`.
 2. **No invented content words**: reject if any content word of `cleaned` does not occur
    among the content words of `original`. Reason: `invented: w1, w2, …` (up to five).
 3. **Length ratio**: `ratio = cleanedContentCount / denominator` where `denominator` is the
