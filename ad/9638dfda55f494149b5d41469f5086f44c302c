@@ -1,0 +1,53 @@
+Sources/Sotto/App/AppComposition.swift
+  s_eebd3ef0b290cc::t_c2cdb3740d42af 8-9,12,17-18,20-21,24
+Sources/Sotto/App/SottoApp.swift
+  s_eebd3ef0b290cc::t_bb5bd372a8aa04 78-82
+Sources/Sotto/Cleanup/CleanupModel.swift
+  s_eebd3ef0b290cc::t_05d72898b318d5 1-121
+Sources/Sotto/Cleanup/FoundationModelFormatter.swift
+  s_eebd3ef0b290cc::t_9b6d3f968c9c42 1-151
+Sources/Sotto/Core/TextInjector.swift
+  s_eebd3ef0b290cc::t_ab1709eb1c3946 1-206
+Sources/Sotto/Core/UtterancePipeline.swift
+  s_eebd3ef0b290cc::t_8321c89856d040 1-108
+Sources/Sotto/Dictionary/DictionaryStore.swift
+  s_eebd3ef0b290cc::t_d410316c5d9366 1-229
+Sources/Sotto/History/DictationRun.swift
+  s_eebd3ef0b290cc::t_0898bfb8ce8bf2 1-56
+Sources/Sotto/History/HistoryLog.swift
+  s_eebd3ef0b290cc::t_fc09838486ff24 1-175
+Sources/Sotto/History/HistoryStore.swift
+  s_eebd3ef0b290cc::t_e46acf0cf7e3ed 1-22
+Sources/Sotto/Support/AppSupportDirectory.swift
+  s_eebd3ef0b290cc::t_cfe11bab945366 1-12
+Tests/SottoAppTests/DictionaryStoreTests.swift
+  s_eebd3ef0b290cc::t_217f647b040c97 1-299
+Tests/SottoAppTests/FoundationModelFormatterTests.swift
+  s_ffd64ab11e57d3::t_b68500115ffff5 1-163
+Tests/SottoAppTests/HistoryLogTests.swift
+  s_eebd3ef0b290cc::t_56e6d511aecd5a 1-183
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "ad9638dfda55f494149b5d41469f5086f44c302c",
+  "prompts": {},
+  "sessions": {
+    "s_eebd3ef0b290cc": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "92b309ea-9204-4668-a7f0-b7b05be4b19a",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Conrad <conne_95@msn.com>"
+    },
+    "s_ffd64ab11e57d3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d2e38c74-cca9-459e-883f-b15ec6443c34",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Conrad <conne_95@msn.com>"
+    }
+  }
+}
