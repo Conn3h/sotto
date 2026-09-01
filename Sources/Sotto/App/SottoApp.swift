@@ -7,9 +7,36 @@ struct SottoApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
 
     var body: some Scene {
-        MenuBarExtra("Sotto", systemImage: "waveform") {
-            Button("Quit Sotto") { NSApp.terminate(nil) }
-                .keyboardShortcut("q")
+        let controller = delegate.composition.controller
+
+        Window("Sotto", id: "main") {
+            MainWindow(controller: controller)
+                .frame(minWidth: DS.Metric.windowMinWidth, minHeight: DS.Metric.windowMinHeight)
+        }
+        .defaultSize(width: DS.Metric.windowDefaultWidth, height: DS.Metric.windowDefaultHeight)
+        .windowResizability(.contentMinSize)
+        .commands {
+            CommandGroup(replacing: .newItem) {}
+            CommandGroup(after: .newItem) {
+                Button("Reveal Dictionary File") {
+                    NSWorkspace.shared.activateFileViewerSelecting([DictionaryStore.fileURL])
+                }
+                Button("Reload Dictionary") {
+                    DictionaryStore.shared.reloadFromDisk()
+                }
+            }
+        }
+
+        MenuBarExtra(
+            "Sotto",
+            systemImage: controller.state.isActive ? "waveform.circle.fill" : "waveform"
+        ) {
+            MenuBarContent(controller: controller)
+        }
+        .menuBarExtraStyle(.menu)
+
+        SwiftUI.Settings {
+            SettingsWindow(controller: controller)
         }
     }
 }

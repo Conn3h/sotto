@@ -165,6 +165,12 @@ extension DS {
         // cycle through the HUD's level meter bars.
         /// Seconds per ripple cycle for the HUD meter's phase animation.
         static let hudMeterCycle: Double = 0.9
+
+        // Not named in §6.14; added by batch C1.
+        /// Refresh interval, in seconds, for the main window's elapsed-time readout.
+        static let elapsedTick: Double = 0.1
+        /// Refresh interval, in seconds, for `SettingsWindow`'s permission-status poll.
+        static let permissionPollInterval: Double = 1.0
     }
 }
 
@@ -203,6 +209,32 @@ extension DS {
         /// Peak height a HUD meter bar reaches at full level; bars rest at `hudBarFloor`
         /// between peaks and when the meter is inactive.
         static let hudBarMaxHeight: CGFloat = 22
+
+        // Not named in §6.14; added by batch C1 for `Components.LevelMeterView`, the main
+        // window's level meter. Deliberately separate from the HUD's own `hudBar*` tokens
+        // (§6.14 already reserves plain `meterBarCount`, shared by both meters, for the bar
+        // count) so the two meters can be tuned independently.
+        /// Width of one bar in `LevelMeterView`.
+        static let meterBarWidth: CGFloat = 4
+        /// Spacing between bars in `LevelMeterView`.
+        static let meterBarSpacing: CGFloat = 4
+        /// Rest height of an unlit `LevelMeterView` bar.
+        static let meterBarFloor: CGFloat = 4
+        /// Height of a lit `LevelMeterView` bar.
+        static let meterBarMaxHeight: CGFloat = 28
+
+        // Not named in §6.14; added by batch C1.
+        /// Diameter of the main window's recording lamp.
+        static let lampSize: CGFloat = 10
+        /// Minimum width of one option in `SegmentedChoice`, shared by the History/Dictionary
+        /// tabs, the push-to-talk key picker and the dictionary kind toggle so every "keycap"
+        /// in the app reads as one family.
+        static let keycapMinWidth: CGFloat = 64
+        /// Point size of the glyph in `EmptyStateView`.
+        static let emptyStateIconSize: CGFloat = 32
+        /// Opacity of a disabled dictionary entry's row, so a glance at the list shows which
+        /// entries are off without needing to read every toggle.
+        static let disabledEntryOpacity: Double = 0.5
     }
 }
 
