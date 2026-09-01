@@ -160,6 +160,11 @@ extension DS {
         static let quick: Double = 0.12
         static let panel: Double = 0.2
         static let hud: Double = 0.16
+
+        // Not named in §6.14; added by batch B2. The period, in seconds, of one ripple
+        // cycle through the HUD's level meter bars.
+        /// Seconds per ripple cycle for the HUD meter's phase animation.
+        static let hudMeterCycle: Double = 0.9
     }
 }
 
@@ -193,5 +198,22 @@ extension DS {
         static let tokenSheetLabelWidth: CGFloat = 132
         /// Height of the bar `TokenSheet` draws to visualise each `Space` value.
         static let tokenSheetBarHeight: CGFloat = 10
+
+        // Not named in §6.14; added by batch B2 for the HUD's level meter.
+        /// Peak height a HUD meter bar reaches at full level; bars rest at `hudBarFloor`
+        /// between peaks and when the meter is inactive.
+        static let hudBarMaxHeight: CGFloat = 22
+    }
+}
+
+// MARK: - Material
+
+extension DS {
+    /// System materials. Added by batch B2: §6.14 calls for "the HUD's material background"
+    /// as the one deliberate exception to "no blur-heavy glass"; every other surface in the
+    /// app is a flat `DS.Color` fill. Kept here, not inlined in `HUDView`, for the same
+    /// reason every other visual constant lives in `DS`.
+    enum Material {
+        static let hud: SwiftUI.Material = .regularMaterial
     }
 }
