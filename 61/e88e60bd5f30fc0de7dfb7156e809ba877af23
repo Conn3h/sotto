@@ -1,0 +1,21 @@
+README.md
+  s_eebd3ef0b290cc::t_8ef4f699c49ed2 3-6,32-36,39-41
+docs/reviews/2026-09-02-codex-verification.md
+  s_eebd3ef0b290cc::t_a4ac7edbeedad9 28-35
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "61e88e60bd5f30fc0de7dfb7156e809ba877af23",
+  "prompts": {},
+  "sessions": {
+    "s_eebd3ef0b290cc": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "92b309ea-9204-4668-a7f0-b7b05be4b19a",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Conrad <conne_95@msn.com>"
+    }
+  }
+}
