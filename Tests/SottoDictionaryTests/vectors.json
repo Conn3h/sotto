@@ -1,132 +1,570 @@
 [
-  { "name": "basic correction",
-    "entries": [{ "kind": "correction", "hear": "cloud code", "write": "Claude Code" }],
-    "input": "I use cloud code daily", "expected": "I use Claude Code daily",
-    "applied": [{ "from": "cloud code", "to": "Claude Code", "count": 1 }] },
-  { "name": "case-insensitive match, replacement keeps the stored casing",
-    "entries": [{ "kind": "correction", "hear": "cloud code", "write": "Claude Code" }],
-    "input": "CLOUD CODE is great", "expected": "Claude Code is great",
-    "applied": [{ "from": "CLOUD CODE", "to": "Claude Code", "count": 1 }] },
-  { "name": "glued words match",
-    "entries": [{ "kind": "correction", "hear": "cloud code", "write": "Claude Code" }],
-    "input": "I opened CloudCode", "expected": "I opened Claude Code",
-    "applied": [{ "from": "CloudCode", "to": "Claude Code", "count": 1 }] },
-  { "name": "hyphenated form matches",
-    "entries": [{ "kind": "correction", "hear": "cloud code", "write": "Claude Code" }],
-    "input": "cloud-code rocks", "expected": "Claude Code rocks",
-    "applied": [{ "from": "cloud-code", "to": "Claude Code", "count": 1 }] },
-  { "name": "multiple spaces between parts",
-    "entries": [{ "kind": "correction", "hear": "cloud code", "write": "Claude Code" }],
-    "input": "try cloud   code now", "expected": "try Claude Code now",
-    "applied": [{ "from": "cloud   code", "to": "Claude Code", "count": 1 }] },
-  { "name": "newline between parts",
-    "entries": [{ "kind": "correction", "hear": "cloud code", "write": "Claude Code" }],
-    "input": "cloud\ncode", "expected": "Claude Code",
-    "applied": [{ "from": "cloud\ncode", "to": "Claude Code", "count": 1 }] },
-  { "name": "hyphenated trigger matches the spaced form",
-    "entries": [{ "kind": "correction", "hear": "e-mail", "write": "email" }],
-    "input": "send an e mail", "expected": "send an email",
-    "applied": [{ "from": "e mail", "to": "email", "count": 1 }] },
-  { "name": "prefix of a longer word does not fire",
-    "entries": [{ "kind": "correction", "hear": "cloud", "write": "Claude" }],
-    "input": "cloudflare is a cdn", "expected": "cloudflare is a cdn", "applied": [] },
-  { "name": "suffix of a longer word does not fire",
-    "entries": [{ "kind": "correction", "hear": "cloud", "write": "Claude" }],
-    "input": "the icloud sync", "expected": "the icloud sync", "applied": [] },
-  { "name": "hyphen neighbour blocks the match",
-    "entries": [{ "kind": "correction", "hear": "cloud", "write": "Claude" }],
-    "input": "cloud-native apps", "expected": "cloud-native apps", "applied": [] },
-  { "name": "apostrophe is a boundary so possessives are corrected",
-    "entries": [{ "kind": "correction", "hear": "jon", "write": "John" }],
-    "input": "jon's laptop", "expected": "John's laptop",
-    "applied": [{ "from": "jon", "to": "John", "count": 1 }] },
-  { "name": "curly apostrophe is a boundary too",
-    "entries": [{ "kind": "correction", "hear": "jon", "write": "John" }],
-    "input": "jon’s laptop", "expected": "John’s laptop",
-    "applied": [{ "from": "jon", "to": "John", "count": 1 }] },
-  { "name": "punctuation neighbours are boundaries",
-    "entries": [{ "kind": "correction", "hear": "cloud", "write": "Claude" }],
-    "input": "(cloud), cloud.", "expected": "(Claude), Claude.",
-    "applied": [{ "from": "cloud", "to": "Claude", "count": 2 }] },
-  { "name": "longest trigger wins at the same position",
+  {
+    "name": "basic correction",
     "entries": [
-      { "kind": "correction", "hear": "claude", "write": "Claude" },
-      { "kind": "correction", "hear": "claude code", "write": "Claude Code" } ],
-    "input": "claude code and claude", "expected": "Claude Code and Claude",
+      {
+        "kind": "correction",
+        "hear": "cloud code",
+        "write": "Claude Code"
+      }
+    ],
+    "input": "I use cloud code daily",
+    "expected": "I use Claude Code daily",
     "applied": [
-      { "from": "claude code", "to": "Claude Code", "count": 1 },
-      { "from": "claude", "to": "Claude", "count": 1 } ] },
-  { "name": "leftmost match wins over a later overlapping candidate",
+      {
+        "from": "cloud code",
+        "to": "Claude Code",
+        "count": 1
+      }
+    ]
+  },
+  {
+    "name": "case-insensitive match, replacement keeps the stored casing",
     "entries": [
-      { "kind": "correction", "hear": "new york", "write": "New York" },
-      { "kind": "correction", "hear": "york times", "write": "The Times" } ],
-    "input": "new york times", "expected": "New York times",
-    "applied": [{ "from": "new york", "to": "New York", "count": 1 }] },
-  { "name": "replacement text is never re-matched",
-    "entries": [
-      { "kind": "correction", "hear": "foo", "write": "bar" },
-      { "kind": "correction", "hear": "bar", "write": "baz" } ],
-    "input": "foo and bar", "expected": "bar and baz",
+      {
+        "kind": "correction",
+        "hear": "cloud code",
+        "write": "Claude Code"
+      }
+    ],
+    "input": "CLOUD CODE is great",
+    "expected": "Claude Code is great",
     "applied": [
-      { "from": "foo", "to": "bar", "count": 1 },
-      { "from": "bar", "to": "baz", "count": 1 } ] },
-  { "name": "duplicate triggers resolve to the earlier entry",
+      {
+        "from": "CLOUD CODE",
+        "to": "Claude Code",
+        "count": 1
+      }
+    ]
+  },
+  {
+    "name": "glued words match",
     "entries": [
-      { "kind": "correction", "hear": "test", "write": "first" },
-      { "kind": "correction", "hear": "test", "write": "second" } ],
-    "input": "a test", "expected": "a first",
-    "applied": [{ "from": "test", "to": "first", "count": 1 }] },
-  { "name": "count reflects every occurrence and from reflects the first",
-    "entries": [{ "kind": "correction", "hear": "cloud code", "write": "Claude Code" }],
+      {
+        "kind": "correction",
+        "hear": "cloud code",
+        "write": "Claude Code"
+      }
+    ],
+    "input": "I opened CloudCode",
+    "expected": "I opened Claude Code",
+    "applied": [
+      {
+        "from": "CloudCode",
+        "to": "Claude Code",
+        "count": 1
+      }
+    ]
+  },
+  {
+    "name": "hyphenated form matches",
+    "entries": [
+      {
+        "kind": "correction",
+        "hear": "cloud code",
+        "write": "Claude Code"
+      }
+    ],
+    "input": "cloud-code rocks",
+    "expected": "Claude Code rocks",
+    "applied": [
+      {
+        "from": "cloud-code",
+        "to": "Claude Code",
+        "count": 1
+      }
+    ]
+  },
+  {
+    "name": "multiple spaces between parts",
+    "entries": [
+      {
+        "kind": "correction",
+        "hear": "cloud code",
+        "write": "Claude Code"
+      }
+    ],
+    "input": "try cloud   code now",
+    "expected": "try Claude Code now",
+    "applied": [
+      {
+        "from": "cloud   code",
+        "to": "Claude Code",
+        "count": 1
+      }
+    ]
+  },
+  {
+    "name": "newline between parts",
+    "entries": [
+      {
+        "kind": "correction",
+        "hear": "cloud code",
+        "write": "Claude Code"
+      }
+    ],
+    "input": "cloud\ncode",
+    "expected": "Claude Code",
+    "applied": [
+      {
+        "from": "cloud\ncode",
+        "to": "Claude Code",
+        "count": 1
+      }
+    ]
+  },
+  {
+    "name": "hyphenated trigger matches the spaced form",
+    "entries": [
+      {
+        "kind": "correction",
+        "hear": "e-mail",
+        "write": "email"
+      }
+    ],
+    "input": "send an e mail",
+    "expected": "send an email",
+    "applied": [
+      {
+        "from": "e mail",
+        "to": "email",
+        "count": 1
+      }
+    ]
+  },
+  {
+    "name": "prefix of a longer word does not fire",
+    "entries": [
+      {
+        "kind": "correction",
+        "hear": "cloud",
+        "write": "Claude"
+      }
+    ],
+    "input": "cloudflare is a cdn",
+    "expected": "cloudflare is a cdn",
+    "applied": []
+  },
+  {
+    "name": "suffix of a longer word does not fire",
+    "entries": [
+      {
+        "kind": "correction",
+        "hear": "cloud",
+        "write": "Claude"
+      }
+    ],
+    "input": "the icloud sync",
+    "expected": "the icloud sync",
+    "applied": []
+  },
+  {
+    "name": "hyphen neighbour blocks the match",
+    "entries": [
+      {
+        "kind": "correction",
+        "hear": "cloud",
+        "write": "Claude"
+      }
+    ],
+    "input": "cloud-native apps",
+    "expected": "cloud-native apps",
+    "applied": []
+  },
+  {
+    "name": "apostrophe is a boundary so possessives are corrected",
+    "entries": [
+      {
+        "kind": "correction",
+        "hear": "jon",
+        "write": "John"
+      }
+    ],
+    "input": "jon's laptop",
+    "expected": "John's laptop",
+    "applied": [
+      {
+        "from": "jon",
+        "to": "John",
+        "count": 1
+      }
+    ]
+  },
+  {
+    "name": "curly apostrophe is a boundary too",
+    "entries": [
+      {
+        "kind": "correction",
+        "hear": "jon",
+        "write": "John"
+      }
+    ],
+    "input": "jon\u2019s laptop",
+    "expected": "John\u2019s laptop",
+    "applied": [
+      {
+        "from": "jon",
+        "to": "John",
+        "count": 1
+      }
+    ]
+  },
+  {
+    "name": "punctuation neighbours are boundaries",
+    "entries": [
+      {
+        "kind": "correction",
+        "hear": "cloud",
+        "write": "Claude"
+      }
+    ],
+    "input": "(cloud), cloud.",
+    "expected": "(Claude), Claude.",
+    "applied": [
+      {
+        "from": "cloud",
+        "to": "Claude",
+        "count": 2
+      }
+    ]
+  },
+  {
+    "name": "longest trigger wins at the same position",
+    "entries": [
+      {
+        "kind": "correction",
+        "hear": "claude",
+        "write": "Claude"
+      },
+      {
+        "kind": "correction",
+        "hear": "claude code",
+        "write": "Claude Code"
+      }
+    ],
+    "input": "claude code and claude",
+    "expected": "Claude Code and Claude",
+    "applied": [
+      {
+        "from": "claude code",
+        "to": "Claude Code",
+        "count": 1
+      },
+      {
+        "from": "claude",
+        "to": "Claude",
+        "count": 1
+      }
+    ]
+  },
+  {
+    "name": "leftmost match wins over a later overlapping candidate",
+    "entries": [
+      {
+        "kind": "correction",
+        "hear": "new york",
+        "write": "New York"
+      },
+      {
+        "kind": "correction",
+        "hear": "york times",
+        "write": "The Times"
+      }
+    ],
+    "input": "new york times",
+    "expected": "New York times",
+    "applied": [
+      {
+        "from": "new york",
+        "to": "New York",
+        "count": 1
+      }
+    ]
+  },
+  {
+    "name": "replacement text is never re-matched",
+    "entries": [
+      {
+        "kind": "correction",
+        "hear": "foo",
+        "write": "bar"
+      },
+      {
+        "kind": "correction",
+        "hear": "bar",
+        "write": "baz"
+      }
+    ],
+    "input": "foo and bar",
+    "expected": "bar and baz",
+    "applied": [
+      {
+        "from": "foo",
+        "to": "bar",
+        "count": 1
+      },
+      {
+        "from": "bar",
+        "to": "baz",
+        "count": 1
+      }
+    ]
+  },
+  {
+    "name": "duplicate triggers resolve to the earlier entry",
+    "entries": [
+      {
+        "kind": "correction",
+        "hear": "test",
+        "write": "first"
+      },
+      {
+        "kind": "correction",
+        "hear": "test",
+        "write": "second"
+      }
+    ],
+    "input": "a test",
+    "expected": "a first",
+    "applied": [
+      {
+        "from": "test",
+        "to": "first",
+        "count": 1
+      }
+    ]
+  },
+  {
+    "name": "count reflects every occurrence and from reflects the first",
+    "entries": [
+      {
+        "kind": "correction",
+        "hear": "cloud code",
+        "write": "Claude Code"
+      }
+    ],
     "input": "CloudCode then cloud code then CLOUD CODE",
     "expected": "Claude Code then Claude Code then Claude Code",
-    "applied": [{ "from": "CloudCode", "to": "Claude Code", "count": 3 }] },
-  { "name": "applied is ordered by first occurrence, not entry order",
-    "entries": [
-      { "kind": "correction", "hear": "beta", "write": "Beta" },
-      { "kind": "correction", "hear": "alpha", "write": "Alpha" } ],
-    "input": "alpha then beta then alpha", "expected": "Alpha then Beta then Alpha",
     "applied": [
-      { "from": "alpha", "to": "Alpha", "count": 2 },
-      { "from": "beta", "to": "Beta", "count": 1 } ] },
-  { "name": "disabled correction does nothing",
-    "entries": [{ "kind": "correction", "hear": "cloud code", "write": "Claude Code", "enabled": false }],
-    "input": "cloud code", "expected": "cloud code", "applied": [] },
-  { "name": "terms never match",
-    "entries": [{ "kind": "term", "write": "cloud code" }],
-    "input": "cloud code", "expected": "cloud code", "applied": [] },
-  { "name": "no entries returns the input unchanged",
-    "entries": [], "input": "nothing to do", "expected": "nothing to do", "applied": [] },
-  { "name": "decomposed input matches a composed trigger and returns composed text",
-    "entries": [{ "kind": "correction", "hear": "café", "write": "Café Noir" }],
-    "input": "I love café", "expected": "I love Café Noir",
-    "applied": [{ "from": "café", "to": "Café Noir", "count": 1 }] },
-  { "name": "composed input matches a decomposed trigger",
-    "entries": [{ "kind": "correction", "hear": "café", "write": "Café Noir" }],
-    "input": "I love café", "expected": "I love Café Noir",
-    "applied": [{ "from": "café", "to": "Café Noir", "count": 1 }] },
-  { "name": "digits are word characters for fencing",
-    "entries": [{ "kind": "correction", "hear": "v2", "write": "version two" }],
-    "input": "v2 is out but v20 is not", "expected": "version two is out but v20 is not",
-    "applied": [{ "from": "v2", "to": "version two", "count": 1 }] },
-  { "name": "trigger at start and end of text",
-    "entries": [{ "kind": "correction", "hear": "hi", "write": "Hello" }],
-    "input": "hi there, hi", "expected": "Hello there, Hello",
-    "applied": [{ "from": "hi", "to": "Hello", "count": 2 }] },
-  { "name": "same letters inside a longer word do not fire",
-    "entries": [{ "kind": "correction", "hear": "art", "write": "ART" }],
-    "input": "the artist started art class", "expected": "the artist started ART class",
-    "applied": [{ "from": "art", "to": "ART", "count": 1 }] },
-  { "name": "replacement may contain an apostrophe",
-    "entries": [{ "kind": "correction", "hear": "dont", "write": "don't" }],
-    "input": "i dont know", "expected": "i don't know",
-    "applied": [{ "from": "dont", "to": "don't", "count": 1 }] },
-  { "name": "trigger with regex metacharacters is matched literally",
-    "entries": [{ "kind": "correction", "hear": "c++", "write": "C++" }],
-    "input": "learn c++ today", "expected": "learn C++ today",
-    "applied": [{ "from": "c++", "to": "C++", "count": 1 }] },
-  { "name": "whitespace around the trigger in the file is ignored",
-    "entries": [{ "kind": "correction", "hear": "  cloud code  ", "write": "Claude Code" }],
-    "input": "cloud code", "expected": "Claude Code",
-    "applied": [{ "from": "cloud code", "to": "Claude Code", "count": 1 }] }
+      {
+        "from": "CloudCode",
+        "to": "Claude Code",
+        "count": 3
+      }
+    ]
+  },
+  {
+    "name": "applied is ordered by first occurrence, not entry order",
+    "entries": [
+      {
+        "kind": "correction",
+        "hear": "beta",
+        "write": "Beta"
+      },
+      {
+        "kind": "correction",
+        "hear": "alpha",
+        "write": "Alpha"
+      }
+    ],
+    "input": "alpha then beta then alpha",
+    "expected": "Alpha then Beta then Alpha",
+    "applied": [
+      {
+        "from": "alpha",
+        "to": "Alpha",
+        "count": 2
+      },
+      {
+        "from": "beta",
+        "to": "Beta",
+        "count": 1
+      }
+    ]
+  },
+  {
+    "name": "disabled correction does nothing",
+    "entries": [
+      {
+        "kind": "correction",
+        "hear": "cloud code",
+        "write": "Claude Code",
+        "enabled": false
+      }
+    ],
+    "input": "cloud code",
+    "expected": "cloud code",
+    "applied": []
+  },
+  {
+    "name": "terms never match",
+    "entries": [
+      {
+        "kind": "term",
+        "write": "cloud code"
+      }
+    ],
+    "input": "cloud code",
+    "expected": "cloud code",
+    "applied": []
+  },
+  {
+    "name": "no entries returns the input unchanged",
+    "entries": [],
+    "input": "nothing to do",
+    "expected": "nothing to do",
+    "applied": []
+  },
+  {
+    "name": "decomposed input matches a composed trigger and returns composed text",
+    "entries": [
+      {
+        "kind": "correction",
+        "hear": "caf\u00e9",
+        "write": "Caf\u00e9 Noir"
+      }
+    ],
+    "input": "I love cafe\u0301",
+    "expected": "I love Caf\u00e9 Noir",
+    "applied": [
+      {
+        "from": "caf\u00e9",
+        "to": "Caf\u00e9 Noir",
+        "count": 1
+      }
+    ]
+  },
+  {
+    "name": "composed input matches a decomposed trigger",
+    "entries": [
+      {
+        "kind": "correction",
+        "hear": "cafe\u0301",
+        "write": "Caf\u00e9 Noir"
+      }
+    ],
+    "input": "I love caf\u00e9",
+    "expected": "I love Caf\u00e9 Noir",
+    "applied": [
+      {
+        "from": "caf\u00e9",
+        "to": "Caf\u00e9 Noir",
+        "count": 1
+      }
+    ]
+  },
+  {
+    "name": "digits are word characters for fencing",
+    "entries": [
+      {
+        "kind": "correction",
+        "hear": "v2",
+        "write": "version two"
+      }
+    ],
+    "input": "v2 is out but v20 is not",
+    "expected": "version two is out but v20 is not",
+    "applied": [
+      {
+        "from": "v2",
+        "to": "version two",
+        "count": 1
+      }
+    ]
+  },
+  {
+    "name": "trigger at start and end of text",
+    "entries": [
+      {
+        "kind": "correction",
+        "hear": "hi",
+        "write": "Hello"
+      }
+    ],
+    "input": "hi there, hi",
+    "expected": "Hello there, Hello",
+    "applied": [
+      {
+        "from": "hi",
+        "to": "Hello",
+        "count": 2
+      }
+    ]
+  },
+  {
+    "name": "same letters inside a longer word do not fire",
+    "entries": [
+      {
+        "kind": "correction",
+        "hear": "art",
+        "write": "ART"
+      }
+    ],
+    "input": "the artist started art class",
+    "expected": "the artist started ART class",
+    "applied": [
+      {
+        "from": "art",
+        "to": "ART",
+        "count": 1
+      }
+    ]
+  },
+  {
+    "name": "replacement may contain an apostrophe",
+    "entries": [
+      {
+        "kind": "correction",
+        "hear": "dont",
+        "write": "don't"
+      }
+    ],
+    "input": "i dont know",
+    "expected": "i don't know",
+    "applied": [
+      {
+        "from": "dont",
+        "to": "don't",
+        "count": 1
+      }
+    ]
+  },
+  {
+    "name": "trigger with regex metacharacters is matched literally",
+    "entries": [
+      {
+        "kind": "correction",
+        "hear": "c++",
+        "write": "C++"
+      }
+    ],
+    "input": "learn c++ today",
+    "expected": "learn C++ today",
+    "applied": [
+      {
+        "from": "c++",
+        "to": "C++",
+        "count": 1
+      }
+    ]
+  },
+  {
+    "name": "whitespace around the trigger in the file is ignored",
+    "entries": [
+      {
+        "kind": "correction",
+        "hear": "  cloud code  ",
+        "write": "Claude Code"
+      }
+    ],
+    "input": "cloud code",
+    "expected": "Claude Code",
+    "applied": [
+      {
+        "from": "cloud code",
+        "to": "Claude Code",
+        "count": 1
+      }
+    ]
+  }
 ]
