@@ -1,6 +1,8 @@
 EXEC     := Sotto
 APPNAME  := Sotto.app
+# `build` and `test` stay debug for fast iteration; the shipped bundle is release.
 CONFIG   := debug
+APP_CONFIG := release
 
 # Build products and the staged bundle live outside the repo. This keeps the tree clean
 # and avoids ever building inside a cloud-synced folder, where a sync engine can touch
@@ -22,6 +24,7 @@ STAGE    := $(CANONICAL_STAGE)
 endif
 SCRATCH    := $(STAGE)/scratch
 BUILD      := $(SCRATCH)/$(CONFIG)/$(EXEC)
+APP_BUILD  := $(SCRATCH)/$(APP_CONFIG)/$(EXEC)
 BUNDLE     := $(STAGE)/$(APPNAME)
 CONTENTS   := $(BUNDLE)/Contents
 INSTALLED  := /Applications/$(APPNAME)
@@ -62,10 +65,11 @@ launchable:
 	fi
 
 # TCC needs a real bundle with a stable identifier; the bare SwiftPM binary is not enough.
-app: signing-identity build
+app: signing-identity
+	swift build -c $(APP_CONFIG) --scratch-path "$(SCRATCH)"
 	@rm -rf "$(BUNDLE)"
 	@mkdir -p "$(CONTENTS)/MacOS" "$(CONTENTS)/Resources"
-	@cp "$(BUILD)" "$(CONTENTS)/MacOS/$(EXEC)"
+	@cp "$(APP_BUILD)" "$(CONTENTS)/MacOS/$(EXEC)"
 	@cp Resources/Info.plist "$(CONTENTS)/Info.plist"
 	@if [ -f Resources/AppIcon.icns ]; then cp Resources/AppIcon.icns "$(CONTENTS)/Resources/"; fi
 	@printf 'APPL????' > "$(CONTENTS)/PkgInfo"
@@ -75,7 +79,7 @@ app: signing-identity build
 	    --options runtime \
 	    --timestamp=none \
 	    "$(BUNDLE)"
-	@echo "built $(BUNDLE)  [signed: $(SIGN_ID)]"
+	@echo "built $(BUNDLE)  [signed: $(SIGN_ID), config: $(APP_CONFIG)]"
 
 run: launchable app
 	@pkill -x $(EXEC) 2>/dev/null || true
