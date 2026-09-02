@@ -1,0 +1,28 @@
+Sources/Sotto/Core/TextInjector.swift
+  s_f4e8c10984db53::t_267b53c69febed 131-135,140-147,173-198
+  s_c94fcde899f7b7::t_d9ec664f6f7d23 199-200
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "5f8a834772ee779102b86341356c3c3983b11f05",
+  "prompts": {},
+  "sessions": {
+    "s_c94fcde899f7b7": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a06181-e013-77c1-9e4e-cf7a6731ce91",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Conrad <conne_95@msn.com>"
+    },
+    "s_f4e8c10984db53": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e8dccb0c-666c-4bbd-9636-7ff30a0fa1da",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Conrad <conne_95@msn.com>"
+    }
+  }
+}
