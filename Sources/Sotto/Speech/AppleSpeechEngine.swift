@@ -383,22 +383,30 @@ actor AppleSpeechEngine: TranscriptionEngine {
         if confirmedAssets.withLock({ $0.contains(key) }) {
             return
         }
-        // Coalesce a launch prepare() and a first press onto one preparation task.
+        // Coalesce a launch prepare() and a first press onto one preparation task. Only the
+        // caller that CREATED the task clears the map entry; reusing waiters never touch it.
+        // `Task` is a value type, so the map cannot be identity-compared to tell a stale
+        // waiter from the current task; letting every waiter clear the key would let a late
+        // clear wipe a newer retry task a fresh caller had already stored, and the next
+        // caller would then start a second concurrent install for the same locale.
+        var created = false
         let task: Task<Void, Error> = assetPrep.withLock { inFlight in
             if let existing = inFlight[key] {
                 return existing
             }
-            let created = Task { try await performAssetInstall(for: transcriber, locale: locale) }
-            inFlight[key] = created
-            return created
+            let made = Task { try await performAssetInstall(for: transcriber, locale: locale) }
+            inFlight[key] = made
+            created = true
+            return made
         }
         do {
             try await task.value
             confirmedAssets.withLock { _ = $0.insert(key) }
-            assetPrep.withLock { $0[key] = nil }
+            if created { assetPrep.withLock { $0[key] = nil } }
         } catch {
-            // Evict on failure so a later press can retry rather than reusing a dead task.
-            assetPrep.withLock { $0[key] = nil }
+            // Evict on failure so a later press can retry rather than reusing a dead task,
+            // but only the creator evicts, so a newer retry task is never wiped.
+            if created { assetPrep.withLock { $0[key] = nil } }
             throw error
         }
     }
