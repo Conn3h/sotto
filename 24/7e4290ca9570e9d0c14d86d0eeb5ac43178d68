@@ -1,0 +1,22 @@
+Sources/Sotto/Speech/AppleSpeechEngine.swift
+  s_f4e8c10984db53::t_ef74787caad910 25-27
+  s_f4e8c10984db53::t_0a702994928f0a 385-394
+Sources/Sotto/Core/TextInjector.swift
+  s_f4e8c10984db53::t_cd35e777919837 214
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "247e4290ca9570e9d0c14d86d0eeb5ac43178d68",
+  "prompts": {},
+  "sessions": {
+    "s_f4e8c10984db53": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e8dccb0c-666c-4bbd-9636-7ff30a0fa1da",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Conrad <conne_95@msn.com>"
+    }
+  }
+}
