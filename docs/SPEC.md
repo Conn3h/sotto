@@ -487,14 +487,20 @@ Log the count of corrections applied and the character count injected or recorde
    by exactly `text.utf16.count`", because autocorrect and newline normalisation can shift
    the caret by a different amount, and falling back after a write that did land would paste
    the text twice, which is worse than a missing paragraph.
-2. **Pasteboard + ⌘V.** Save every pasteboard item's data by type; write `text` as a plain
-   string and **record `pasteboard.changeCount`**; wait ~40 ms so the target observes the
-   new pasteboard generation; post ⌘V as `CGEvent`s from a `.privateState` source with
+2. **Pasteboard + ⌘V.** Add one leading space to `text` only when the previous injection
+   was Sotto's own, into the same frontmost application, within eight seconds, and did not
+   end in whitespace; otherwise paste `text` unchanged (the paste path cannot read the
+   target to look at the character before the caret, unlike the accessibility path, so it
+   uses this bounded same-app heuristic instead). Save every pasteboard item's data by
+   type; write the (possibly space-prefixed) text as a plain string and **record
+   `pasteboard.changeCount`**; wait ~40 ms so the target observes the new pasteboard
+   generation; post ⌘V as `CGEvent`s from a `.privateState` source with
    `flags = .maskCommand` set explicitly (do not inherit live hardware modifier state; the
    user may still be resting a finger on a key); wait ~500 ms for the asynchronous paste;
    **restore the saved items only if `changeCount` is still the value recorded after our
    write**, otherwise log that restoration was skipped because the pasteboard changed
-   underneath us.
+   underneath us. The deliberate tradeoff: a caret moved within that window and app is a
+   rare false positive, preferred over reliably-glued run-ons in Electron and Chromium apps.
 
 Log which strategy was used and why the AX path was not trusted, with the character count.
 
@@ -995,9 +1001,7 @@ Things that look wrong and are not, or look fine and will bite:
 
 ## 11. Later
 
-A leading space on the paste path (the accessibility path adds one when the character
-before the caret is not whitespace; the paste path cannot read the target). Parakeet via
-CoreML as a second engine (the seam exists), command mode on selected text,
+Parakeet via CoreML as a second engine (the seam exists), command mode on selected text,
 first-run onboarding, notarization and a DMG, an app icon, live dictionary file watching
 done properly (content fingerprints, debounce), a common-word warning list for the
 dictionary, per-app injection preferences.

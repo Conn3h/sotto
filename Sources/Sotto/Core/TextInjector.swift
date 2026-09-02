@@ -32,6 +32,18 @@ enum TextInjector {
     private static var pendingRestore: PendingRestore?
     private static var restoreTask: Task<Void, Never>?
 
+    /// Only treat back-to-back dictations into the same app as a run-on. Beyond this the
+    /// user has almost certainly moved on, and a leading space would be wrong.
+    private static let pasteRunOnWindow: Duration = .seconds(8)
+
+    private struct LastInjection {
+        let bundleID: String?
+        let at: ContinuousClock.Instant
+        let endedInWhitespace: Bool
+    }
+    private static var lastInjection: LastInjection?
+    private static let injectionClock = ContinuousClock()
+
     /// Returns once the text has been handed to the focused app. On the paste path the
     /// pasteboard is restored `pasteCompletionDelay` later, so the caller (and the user)
     /// does not wait on it; see the type comment for how that restore is kept in line.
@@ -103,6 +115,11 @@ enum TextInjector {
         Log.inject.info(
             "inserted \(inserted.count, privacy: .public) chars via accessibility (leading space: \(leadingSpace, privacy: .public)); selection \(before.location, privacy: .public)+\(before.length, privacy: .public) -> \(after.location, privacy: .public)+\(after.length, privacy: .public)"
         )
+        lastInjection = LastInjection(
+            bundleID: NSWorkspace.shared.frontmostApplication?.bundleIdentifier,
+            at: injectionClock.now,
+            endedInWhitespace: inserted.last?.isWhitespace ?? false
+        )
         return nil
     }
 
@@ -131,7 +148,9 @@ enum TextInjector {
     /// leading space. Reads only the character immediately before the caret via the
     /// range-parameterized attribute, falling back to the whole-value read when that is
     /// unavailable, fails, or returns empty (each logged). The paste path cannot read the
-    /// target at all, so it never does this.
+    /// target at all, so it applies a narrower rule instead: `pasteRunOnLeadingSpaceNeeded`
+    /// adds a leading space only when this paste immediately follows our own injection into
+    /// the same frontmost app, recently, and that text did not already end in whitespace.
     private static func needsLeadingSpace(in element: AXUIElement, before range: CFRange) -> Bool {
         guard range.location > 0 else {
             return false
@@ -201,10 +220,11 @@ enum TextInjector {
 
     private static func insertViaPasteboard(_ text: String) async {
         await awaitPendingRestore()
+        let outgoing = Self.pasteRunOnLeadingSpaceNeeded() ? " " + text : text
         let pasteboard = NSPasteboard.general
         let saved = snapshot(of: pasteboard)
         pasteboard.clearContents()
-        guard pasteboard.setString(text, forType: .string) else {
+        guard pasteboard.setString(outgoing, forType: .string) else {
             Log.inject.error("pasteboard write failed; nothing inserted")
             restore(saved, to: pasteboard)
             return
@@ -224,8 +244,25 @@ enum TextInjector {
             performPendingRestore(reason: "Command-V failed")
             return
         }
-        Log.inject.info("pasted \(text.count, privacy: .public) chars via Command-V")
+        Log.inject.info("pasted \(outgoing.count, privacy: .public) chars via Command-V")
+        lastInjection = LastInjection(
+            bundleID: NSWorkspace.shared.frontmostApplication?.bundleIdentifier,
+            at: injectionClock.now,
+            endedInWhitespace: outgoing.last?.isWhitespace ?? false
+        )
         scheduleRestoreTask()
+    }
+
+    /// True when this paste immediately follows our own injection into the same frontmost
+    /// app, recently, and that text did not already end in whitespace. Conservative on
+    /// purpose: it never fires across apps or after a pause, so a moved caret in a different
+    /// context cannot trigger a spurious space.
+    private static func pasteRunOnLeadingSpaceNeeded() -> Bool {
+        guard let last = lastInjection, !last.endedInWhitespace else { return false }
+        let now = injectionClock.now
+        guard now - last.at <= pasteRunOnWindow else { return false }
+        let current = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
+        return current != nil && current == last.bundleID
     }
 
     /// The previous paste's restore must land before this paste snapshots the pasteboard,
