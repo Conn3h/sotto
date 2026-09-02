@@ -97,7 +97,7 @@ private struct AddEntryRow: View {
     }
 
     private var canAdd: Bool {
-        issues.isEmpty
+        issues.isEmpty && !DictionaryStore.shared.loadFailed
     }
 
     var body: some View {
@@ -116,6 +116,12 @@ private struct AddEntryRow: View {
 
                 RepresentabilityIssueList(issues: issues)
 
+                if DictionaryStore.shared.loadFailed {
+                    Text(Self.loadFailedMessage)
+                        .font(DS.Font.caption)
+                        .foregroundStyle(DS.Color.ink)
+                }
+
                 ForEach(warnings) { warning in
                     Text(warning.message)
                         .font(DS.Font.caption)
@@ -131,6 +137,9 @@ private struct AddEntryRow: View {
             }
         }
     }
+
+    static let loadFailedMessage =
+        "The dictionary file could not be read, so edits are paused. Choose File > Reload Dictionary once it is readable."
 
     private func field(_ placeholder: String, text: Binding<String>) -> some View {
         TextField(placeholder, text: text)
@@ -247,7 +256,7 @@ private struct DictionaryRow: View {
                         DictionaryStore.shared.update(updated)
                         isEditing = false
                     }
-                    .disabled(!issues.isEmpty)
+                    .disabled(!issues.isEmpty || DictionaryStore.shared.loadFailed)
                     Button("Cancel") {
                         draftWrite = entry.write
                         draftHear = entry.hear

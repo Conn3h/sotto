@@ -173,15 +173,22 @@ enum TextInjector {
             return
         }
         let ourChangeCount = pasteboard.changeCount
+        // Registered before the first suspension: a quit during the settle wait must still
+        // give the pasteboard back, and the flush can only restore what is registered.
+        pendingRestore = PendingRestore(saved: saved, changeCount: ourChangeCount)
 
         await wait(pasteboardSettleDelay)
+        guard pendingRestore?.changeCount == ourChangeCount else {
+            Log.inject.info("pasteboard was restored during the settle wait; not pasting")
+            return
+        }
         guard postCommandV() else {
             Log.inject.error("could not synthesize Command-V; nothing inserted")
-            restoreIfUnchanged(saved, since: ourChangeCount)
+            performPendingRestore(reason: "Command-V failed")
             return
         }
         Log.inject.info("pasted \(text.count, privacy: .public) chars via Command-V")
-        schedulePendingRestore(PendingRestore(saved: saved, changeCount: ourChangeCount))
+        scheduleRestoreTask()
     }
 
     /// The previous paste's restore must land before this paste snapshots the pasteboard,
@@ -194,8 +201,7 @@ enum TextInjector {
         await restoreTask.value
     }
 
-    private static func schedulePendingRestore(_ pending: PendingRestore) {
-        pendingRestore = pending
+    private static func scheduleRestoreTask() {
         restoreTask = Task { @MainActor in
             await wait(pasteCompletionDelay)
             performPendingRestore(reason: "paste completed")

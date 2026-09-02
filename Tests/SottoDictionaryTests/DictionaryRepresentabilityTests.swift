@@ -20,19 +20,26 @@ import Testing
         #expect(DictionaryFile.representabilityIssues(for: entry).isEmpty)
     }
 
-    @Test func commentPrefixIsRefusedOnEitherSide() {
+    @Test func commentPrefixIsRefusedWhereItWouldStartTheLine() {
         #expect(DictionaryFile.representabilityIssues(for: .term("#tag")) == [.commentPrefix])
         #expect(DictionaryFile.representabilityIssues(for: .correction(hear: "# off", write: "x")) == [.commentPrefix])
     }
 
-    @Test func arrowIsRefusedOnEitherSide() {
+    @Test func arrowIsRefusedBeforeTheStructuralArrow() {
         #expect(DictionaryFile.representabilityIssues(for: .term("a -> b")) == [.containsArrow])
-        #expect(DictionaryFile.representabilityIssues(for: .correction(hear: "x", write: "y -> z")) == [.containsArrow])
+        #expect(DictionaryFile.representabilityIssues(for: .correction(hear: "a -> b", write: "c")) == [.containsArrow])
+    }
+
+    @Test func correctionWriteSideIsPlainTextAfterTheFirstArrow() {
+        #expect(DictionaryFile.representabilityIssues(for: .correction(hear: "x", write: "y -> z")).isEmpty)
+        #expect(DictionaryFile.representabilityIssues(for: .correction(hear: "tag", write: "#swift")).isEmpty)
+        let parsed = DictionaryFile.parse(DictionaryFile.serialize([.correction(hear: "x", write: "y -> z")]))
+        #expect(parsed.map(\.write) == ["y -> z"])
     }
 
     @Test func issuesAccumulate() {
-        let issues = DictionaryFile.representabilityIssues(for: .correction(hear: "", write: "#a -> b"))
-        #expect(issues == [.blankHear, .commentPrefix, .containsArrow])
+        let issues = DictionaryFile.representabilityIssues(for: .correction(hear: "#a -> b", write: ""))
+        #expect(issues == [.blankWrite, .commentPrefix, .containsArrow])
     }
 
     @Test func everyIssueHasAMessage() {

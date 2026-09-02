@@ -94,6 +94,8 @@ private struct HistoryRow: View {
     @State private var isHovering = false
     @State private var showCopied = false
     @State private var copyFeedbackTask: Task<Void, Never>?
+    /// Bumped per click so only the newest timer may clear the feedback or the handle.
+    @State private var copyGeneration = 0
 
     private static let timeOfDay: DateFormatter = {
         let formatter = DateFormatter()
@@ -178,12 +180,17 @@ private struct HistoryRow: View {
         // Cancel any feedback timer already running for this row, so an earlier click can
         // never clear the "Copied" state a later click just set.
         copyFeedbackTask?.cancel()
+        copyGeneration += 1
+        let generation = copyGeneration
         copyFeedbackTask = Task {
             do {
                 try await Task.sleep(for: .seconds(DS.Metric.copiedFeedbackSeconds))
             } catch {
+                // A newer click owns the handle now; leave it alone.
                 Log.app.debug("copy feedback timer cancelled")
-                copyFeedbackTask = nil
+                return
+            }
+            guard generation == copyGeneration else {
                 return
             }
             showCopied = false

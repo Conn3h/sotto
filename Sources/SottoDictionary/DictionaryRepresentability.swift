@@ -15,8 +15,8 @@ public enum DictionaryRepresentabilityIssue: Sendable, Equatable, CaseIterable {
         switch self {
         case .blankWrite: "The text to write cannot be empty."
         case .blankHear: "A correction needs the text the engine tends to hear."
-        case .commentPrefix: "An entry cannot start with #, which marks a comment in the dictionary file."
-        case .containsArrow: "An entry cannot contain ->, which separates hear from write in the dictionary file."
+        case .commentPrefix: "This text cannot start with #, which marks a comment in the dictionary file."
+        case .containsArrow: "This text cannot contain ->, which separates hear from write in the dictionary file."
         }
     }
 }
@@ -34,10 +34,14 @@ public extension DictionaryFile {
         if entry.kind == .correction, hear.isEmpty {
             issues.append(.blankHear)
         }
-        if write.hasPrefix("#") || (entry.kind == .correction && hear.hasPrefix("#")) {
+        // Only the start of a line can read as a comment, and only the first arrow is
+        // structural: a term is the whole line, a correction's hear side leads it, and
+        // its write side comes after the first arrow, where # and -> are plain text.
+        let structural = entry.kind == .term ? write : hear
+        if structural.hasPrefix("#") {
             issues.append(.commentPrefix)
         }
-        if write.contains("->") || (entry.kind == .correction && hear.contains("->")) {
+        if structural.contains("->") {
             issues.append(.containsArrow)
         }
         return issues
