@@ -1,0 +1,29 @@
+Sources/Sotto/Support/PermissionStatus.swift
+  s_f4e8c10984db53::t_89f45fd1c85870 1-34
+Sources/Sotto/UI/MenuBarContent.swift
+  s_f4e8c10984db53::t_cc04b8691d215c 12,15-17,19,21-24,26-28,30-33,36-39,42,44-52
+Sources/Sotto/App/SottoApp.swift
+  s_f4e8c10984db53::t_9b1b066c5724de 126-127,130
+Sources/Sotto/UI/SettingsWindow.swift
+  s_f4e8c10984db53::t_ed0cd24d6355bc 12
+  s_f4e8c10984db53::t_70ab3460ff3338 101,106
+  s_f4e8c10984db53::t_676e7c31d47e0a 139
+Tests/SottoAppTests/PermissionStatusTests.swift
+  s_f4e8c10984db53::t_6c8a7405cdc9f3 1-23
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "21f5f75e4bee4e5bd2cc640bcd5d743b8f787336",
+  "prompts": {},
+  "sessions": {
+    "s_f4e8c10984db53": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e8dccb0c-666c-4bbd-9636-7ff30a0fa1da",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Conrad <conne_95@msn.com>"
+    }
+  }
+}
