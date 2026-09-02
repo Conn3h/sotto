@@ -14,6 +14,11 @@ struct HistoryLogTests {
             .appending(path: "SottoHistoryTests-\(UUID().uuidString)", directoryHint: .isDirectory)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         HistoryLog.directoryOverride = directory
+        // `HistoryStore.shared` is a real singleton shared by the whole test process. Now
+        // that a successful `record` updates it in memory instead of re-reading the file,
+        // it no longer self-heals against another test's leftovers when the override
+        // directory changes, so reset it to match this fresh, empty directory explicitly.
+        HistoryStore.shared.replace(withFileOrder: [])
         defer {
             HistoryLog.directoryOverride = nil
             do {
@@ -269,6 +274,21 @@ struct HistoryLogTests {
             #expect(HistoryLog.load().isEmpty)
             let report = try HistoryLog.loadReport().get()
             #expect(report.skipped == 0)
+        }
+    }
+
+    @Test func recordDoesNotReReadTheWholeFile() async throws {
+        try await withTemporaryLog { _ in
+            _ = HistoryStore.shared          // force lazy init before measuring reads
+            let before = HistoryLog.loadCount
+            HistoryLog.record(makeRun(text: "first"))
+            HistoryLog.record(makeRun(text: "second"))
+            #expect(HistoryLog.loadCount == before)   // record no longer re-reads the file
+
+            // load() itself reads (bumping loadCount, which is fine) and round-trips both
+            // runs in append order.
+            let loaded = HistoryLog.load()
+            #expect(loaded.map(\.text) == ["first", "second"])
         }
     }
 }

@@ -13,6 +13,9 @@ enum HistoryLog {
     /// Tests point the log at a temporary directory.
     static var directoryOverride: URL?
 
+    /// Full-file reads, for tests that assert `record` no longer re-reads.
+    private(set) static var loadCount = 0
+
     static var directoryURL: URL {
         directoryOverride ?? AppSupportDirectory.url
     }
@@ -44,8 +47,12 @@ enum HistoryLog {
 
     // MARK: Writes
 
-    /// Appends one line, then reloads `HistoryStore`.
+    /// Appends one line. On success, updates `HistoryStore` in memory instead of re-reading
+    /// the file; on failure, reloads so the store reflects the file's actual contents.
     static func record(_ run: DictationRun) {
+        // Resolve (and possibly lazily initialise) the store BEFORE the append, so a first
+        // init reads the pre-append file and cannot double-count this run.
+        let store = HistoryStore.shared
         do {
             let data = try encoder.encode(run)
             try AppSupportDirectory.ensureExists(directoryURL)
@@ -53,12 +60,13 @@ enum HistoryLog {
             Log.history.info(
                 "recorded run \(run.id.uuidString, privacy: .public): \(run.text.count, privacy: .public) chars, source \(run.source, privacy: .public), \(run.corrections?.count ?? 0, privacy: .public) corrections"
             )
+            store.prepend(run)
         } catch {
             Log.history.error(
                 "record failed for run \(run.id.uuidString, privacy: .public): \(error.localizedDescription, privacy: .public)"
             )
+            store.reload()
         }
-        HistoryStore.shared.reload()
     }
 
     /// Rewrites the file without the given runs, then reloads `HistoryStore`. Aborts, with
@@ -140,6 +148,7 @@ enum HistoryLog {
         guard FileManager.default.fileExists(atPath: fileURL.path) else {
             return .success(LoadReport(runs: [], skipped: 0))
         }
+        loadCount += 1
         let data: Data
         do {
             data = try Data(contentsOf: fileURL)

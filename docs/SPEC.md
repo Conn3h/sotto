@@ -792,6 +792,7 @@ struct DictationRun: Codable, Sendable, Identifiable {
 @MainActor @Observable final class HistoryStore {   // the UI's view of the log
     static let shared: HistoryStore
     private(set) var runs: [DictationRun]
+    func prepend(_ run: DictationRun)
     func reload()
 }
 ```
@@ -799,9 +800,13 @@ struct DictationRun: Codable, Sendable, Identifiable {
 Append one JSON line per run (ISO-8601 dates). `load` skips undecodable lines but logs how
 many were skipped, and writes freshly minted ids back to the file during that load (as built:
 `delete(ids:)` re-reads the file, so a lazily minted id could never match). `delete`/`clear`
-rewrite the whole file atomically. Every write failure is logged. `record`, `delete` and
-`clear` all reload `HistoryStore`, whose `runs` are newest first (as built). There is no HTML
-dashboard. Both stores share `Support/AppSupportDirectory.swift` for the directory (as built).
+rewrite the whole file atomically. Every write failure is logged. A successful `record`
+resolves `HistoryStore.shared` before appending and then prepends the known run to
+`HistoryStore` in memory, with no read; an append failure reloads instead, so the store
+still reflects the file's actual contents. `delete` and `clear` rewrite the file atomically
+and then replace the store from the known file order (or reload, on a failed rewrite).
+`HistoryStore.runs` are newest first (as built). There is no HTML dashboard. Both stores
+share `Support/AppSupportDirectory.swift` for the directory (as built).
 
 ### 6.14 UI
 

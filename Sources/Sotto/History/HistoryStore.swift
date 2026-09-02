@@ -15,6 +15,13 @@ final class HistoryStore {
         reload()
     }
 
+    /// `HistoryLog.record` calls this after a successful append: the new run is the newest,
+    /// so it goes to the front, with no disk read.
+    func prepend(_ run: DictationRun) {
+        runs = [run] + runs
+        Log.history.debug("history store prepended: \(self.runs.count, privacy: .public) runs")
+    }
+
     /// `HistoryLog` calls this right after a rewrite, when it knows the file's contents
     /// without reading them back.
     func replace(withFileOrder runsInFileOrder: [DictationRun]) {
