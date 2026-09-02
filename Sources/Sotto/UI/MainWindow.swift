@@ -14,6 +14,7 @@ struct MainWindow: View {
     }
 
     @State private var tab: Tab = .history
+    @State private var windowVisible = true
 
     var body: some View {
         VStack(spacing: DS.Space.none) {
@@ -59,6 +60,7 @@ struct MainWindow: View {
                 .padding(.bottom, DS.Space.roomy)
             }
         }
+        .background(WindowVisibilityReader(isVisible: $windowVisible))
         .background(DS.Color.ground)
     }
 }
