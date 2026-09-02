@@ -1,6 +1,7 @@
 import AVFoundation
 import Foundation
 import Speech
+import Synchronization
 
 /// Apple's on-device `SpeechAnalyzer` behind the engine seam. One instance serves one
 /// utterance: `start()` once, `feed()` many times, then `finish()` or `cancel()`.
@@ -19,6 +20,14 @@ actor AppleSpeechEngine: TranscriptionEngine {
     /// An asset check that takes longer than this is a real download; anything quicker is
     /// the inventory confirming the assets are already on disk.
     private static let assetDownloadThreshold: Duration = .milliseconds(250)
+
+    /// Resolving a locale and confirming assets both cross into the Speech daemon. Neither
+    /// answer changes for the life of the process, so both are memoised. `assetPrep` holds
+    /// the single in-flight preparation per resolved locale so a launch `prepare()` and a
+    /// quick first press coalesce onto one download instead of racing two.
+    private static let resolvedLocales = Mutex<[String: Locale]>([:])
+    private static let confirmedAssets = Mutex<Set<String>>([])
+    private static let assetPrep = Mutex<[String: Task<Void, Error>]>([:])
 
     private let requestedLocale: Locale
     private let biasPhrases: [String]
@@ -58,7 +67,7 @@ actor AppleSpeechEngine: TranscriptionEngine {
         }
         let transcriber = makeTranscriber(locale: resolved)
         do {
-            try await installAssetsIfNeeded(for: transcriber)
+            try await installAssetsIfNeeded(for: transcriber, locale: resolved)
             Log.speech.info("prepare: speech ready for \(resolved.identifier, privacy: .public)")
         } catch {
             Log.speech.error("prepare failed: \(error.localizedDescription, privacy: .public)")
@@ -195,7 +204,7 @@ actor AppleSpeechEngine: TranscriptionEngine {
 
         let transcriber = Self.makeTranscriber(locale: locale)
         self.transcriber = transcriber
-        try await Self.installAssetsIfNeeded(for: transcriber)
+        try await Self.installAssetsIfNeeded(for: transcriber, locale: locale)
         try checkLive()
 
         let analyzer = SpeechAnalyzer(modules: [transcriber])
@@ -334,13 +343,23 @@ actor AppleSpeechEngine: TranscriptionEngine {
     // MARK: Locale and assets
 
     private static func resolveLocale(requestedLocale: Locale) async -> Locale? {
-        if let match = await SpeechTranscriber.supportedLocale(equivalentTo: requestedLocale) {
-            return match
+        let key = requestedLocale.identifier
+        if let cached = resolvedLocales.withLock({ $0[key] }) {
+            return cached
         }
-        Log.speech.info(
-            "locale \(requestedLocale.identifier, privacy: .public) unsupported; trying \(fallbackLocale.identifier, privacy: .public)"
-        )
-        return await SpeechTranscriber.supportedLocale(equivalentTo: fallbackLocale)
+        let resolved: Locale?
+        if let match = await SpeechTranscriber.supportedLocale(equivalentTo: requestedLocale) {
+            resolved = match
+        } else {
+            Log.speech.info(
+                "locale \(requestedLocale.identifier, privacy: .public) unsupported; trying \(fallbackLocale.identifier, privacy: .public)"
+            )
+            resolved = await SpeechTranscriber.supportedLocale(equivalentTo: fallbackLocale)
+        }
+        if let resolved {
+            resolvedLocales.withLock { $0[key] = resolved }
+        }
+        return resolved
     }
 
     private static func makeTranscriber(locale: Locale) -> SpeechTranscriber {
@@ -352,7 +371,32 @@ actor AppleSpeechEngine: TranscriptionEngine {
         )
     }
 
-    private static func installAssetsIfNeeded(for transcriber: SpeechTranscriber) async throws {
+    private static func installAssetsIfNeeded(for transcriber: SpeechTranscriber, locale: Locale) async throws {
+        let key = locale.identifier
+        if confirmedAssets.withLock({ $0.contains(key) }) {
+            return
+        }
+        // Coalesce a launch prepare() and a first press onto one preparation task.
+        let task: Task<Void, Error> = assetPrep.withLock { inFlight in
+            if let existing = inFlight[key] {
+                return existing
+            }
+            let created = Task { try await performAssetInstall(for: transcriber, locale: locale) }
+            inFlight[key] = created
+            return created
+        }
+        do {
+            try await task.value
+            confirmedAssets.withLock { _ = $0.insert(key) }
+            assetPrep.withLock { $0[key] = nil }
+        } catch {
+            // Evict on failure so a later press can retry rather than reusing a dead task.
+            assetPrep.withLock { $0[key] = nil }
+            throw error
+        }
+    }
+
+    private static func performAssetInstall(for transcriber: SpeechTranscriber, locale: Locale) async throws {
         let request: AssetInstallationRequest?
         do {
             request = try await AssetInventory.assetInstallationRequest(supporting: [transcriber])
