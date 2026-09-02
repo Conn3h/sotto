@@ -1,0 +1,34 @@
+Sources/Sotto/Core/TextInjector.swift
+  s_f4e8c10984db53::t_d1df1c88d6794e 118-122
+  s_f4e8c10984db53::t_37bd0bdd4df6bf 35-46,266
+  s_f4e8c10984db53::t_88222b714f6d60 151-153
+  s_f4e8c10984db53::t_427aa50d973f62 223,227,247-252,256-265
+  s_88272f0e001911::t_cbc2f8939a90e2 267
+docs/SPEC.md
+  s_f4e8c10984db53::t_c78e1d2c6f470d 1004
+  s_f4e8c10984db53::t_8be1157be40c06 490-497,502-503
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "9a8583a6154da0db8b0df57415b12a0148b9ca57",
+  "prompts": {},
+  "sessions": {
+    "s_88272f0e001911": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6ec78b83-83d3-439b-9140-124461195455",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Conrad <conne_95@msn.com>"
+    },
+    "s_f4e8c10984db53": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e8dccb0c-666c-4bbd-9636-7ff30a0fa1da",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Conrad <conne_95@msn.com>"
+    }
+  }
+}
