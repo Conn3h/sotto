@@ -1,0 +1,23 @@
+Sources/Sotto/App/SottoApp.swift
+  s_eebd3ef0b290cc::t_05e537ca021042 61-67
+docs/SPEC.md
+  s_eebd3ef0b290cc::t_7e1760e2fa1755 987-989
+docs/reviews/2026-09-02-codex-verification.md
+  s_eebd3ef0b290cc::t_3595f27572fc4d 5
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "636f72024c93873c76224ff3dd62bc4e02788d4c",
+  "prompts": {},
+  "sessions": {
+    "s_eebd3ef0b290cc": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "92b309ea-9204-4668-a7f0-b7b05be4b19a",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Conrad <conne_95@msn.com>"
+    }
+  }
+}
