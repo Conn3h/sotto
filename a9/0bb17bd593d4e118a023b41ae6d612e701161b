@@ -1,0 +1,21 @@
+Makefile
+  s_f4e8c10984db53::t_dc676217d99782 3,5
+  s_f4e8c10984db53::t_4ed380468ea36c 27
+  s_f4e8c10984db53::t_9252d5d9a30672 68-69,72,82
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "a90bb17bd593d4e118a023b41ae6d612e701161b",
+  "prompts": {},
+  "sessions": {
+    "s_f4e8c10984db53": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e8dccb0c-666c-4bbd-9636-7ff30a0fa1da",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Conrad <conne_95@msn.com>"
+    }
+  }
+}
