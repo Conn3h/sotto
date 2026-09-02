@@ -18,7 +18,10 @@ struct MainWindow: View {
     var body: some View {
         VStack(spacing: DS.Space.none) {
             Masthead(controller: controller)
-                .padding(DS.Space.panel)
+                .padding(.horizontal, DS.Space.panel)
+                .padding(.bottom, DS.Space.panel)
+                // The hidden title bar already contributes its own inset above.
+                .padding(.top, DS.Space.wide)
 
             Rectangle()
                 .fill(DS.Color.hairlineStrong)

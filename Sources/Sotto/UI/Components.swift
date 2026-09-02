@@ -337,6 +337,9 @@ struct TextTabs<Option: Hashable>: View {
                     .fill(isSelected ? DS.Color.ink : DS.Color.clear)
                     .frame(height: DS.Border.hairline)
             }
+            // A bare Rectangle is greedy; without this the underline runs to the edge
+            // of whatever width the row hands out instead of hugging the label.
+            .fixedSize(horizontal: true, vertical: false)
         }
         .buttonStyle(.plain)
     }
