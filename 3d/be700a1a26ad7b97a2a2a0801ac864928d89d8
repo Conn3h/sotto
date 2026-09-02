@@ -1,0 +1,21 @@
+Tests/SottoAppTests/MeterAnimationTests.swift
+  s_f4e8c10984db53::t_ac0375ef377721 1-22
+Sources/Sotto/UI/Components.swift
+  s_f4e8c10984db53::t_e55e38801062c2 172-183
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "3dbe700a1a26ad7b97a2a2a0801ac864928d89d8",
+  "prompts": {},
+  "sessions": {
+    "s_f4e8c10984db53": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e8dccb0c-666c-4bbd-9636-7ff30a0fa1da",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Conrad <conne_95@msn.com>"
+    }
+  }
+}
