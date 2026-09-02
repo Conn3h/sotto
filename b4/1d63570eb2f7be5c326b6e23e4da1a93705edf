@@ -1,0 +1,28 @@
+Sources/Sotto/Core/DictationController.swift
+  s_f4e8c10984db53::t_475c49deaed271 138-139,146
+  s_f4e8c10984db53::t_7d67da4c20e34d 488-545
+  s_f4e8c10984db53::t_f5bb8232f66c86 122-127
+  s_f4e8c10984db53::t_f4a61d7bf57311 417-419,422
+Tests/SottoAppTests/Fakes.swift
+  s_f4e8c10984db53::t_e138f0d73fd399 339-340,357-358
+docs/SPEC.md
+  s_f4e8c10984db53::t_b7e741147c8959 408-412
+Tests/SottoAppTests/DictationControllerTests.swift
+  s_f4e8c10984db53::t_5ea79904f375ce 461-481
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "b41d63570eb2f7be5c326b6e23e4da1a93705edf",
+  "prompts": {},
+  "sessions": {
+    "s_f4e8c10984db53": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e8dccb0c-666c-4bbd-9636-7ff30a0fa1da",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Conrad <conne_95@msn.com>"
+    }
+  }
+}
