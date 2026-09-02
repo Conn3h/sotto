@@ -10,6 +10,17 @@ changing anything; it is the source of truth for v1 and every interface in it is
   and copy fresh.
 - **Build with `make`**, never bare `swift build`. Products live in `~/Library/Caches/SottoBuild`.
   `make test` runs the library tests; `make install` signs and installs to /Applications.
+- **Launch only from the main checkout.** `make run` and `make install` refuse to work in a
+  linked worktree or with an overridden `STAGE`; a worktree builds and tests in its own
+  stage under `~/Library/Caches/SottoBuild/worktrees/`. Never `open` a staged `Sotto.app`
+  by hand and never stage one anywhere else. Every opened copy registers with
+  LaunchServices under the same bundle id, and while the Accessibility grant is missing
+  each one pops the system prompt.
+- **Never sign ad-hoc.** `make app` fails without a Developer ID Application identity. Do
+  not work around it with `SIGN_ID=-`; an ad-hoc signature changes every build and resets
+  the grant.
+- **Never run `tccutil`.** Resetting the row wipes the grant and every launch prompts until
+  the user re-grants it in System Settings. That command is the user's, never an agent's.
 - **Swift 6 language mode, strict concurrency.** `MainActor.assumeIsolated` is allowed in
   exactly one place: the C event-tap callback in `HotkeyMonitor`, with a comment.
 - **Tests first for the library targets** (`SottoText`, `SottoDictionary`). Confirm a new
@@ -33,7 +44,8 @@ changing anything; it is the source of truth for v1 and every interface in it is
 ```
 
 Spell out `/usr/bin/log`; `log` is often shadowed. If the Accessibility grant wedges after
-a signing change, reset only this app's row and then quit System Settings fully:
+a signing change, the user (not an agent) resets only this app's row and then quits System
+Settings fully:
 
 ```bash
 tccutil reset Accessibility com.conn3h.sotto

@@ -910,13 +910,19 @@ closure with the pipeline; B2 adds the HUD; C1 adds the scenes.
 
 `make build` / `make test` / `make app` / `make run` / `make install` / `make clean`, see the
 Makefile. Build products and the staged bundle live in `~/Library/Caches/SottoBuild`, never
-in the repo. The bundle is signed with the first Developer ID Application identity found,
-falling back to ad-hoc, with `--options runtime` and the entitlements file. Two grants are
-needed and neither can be requested silently: Accessibility (event tap and AX insert) and
-Microphone (prompted on first dictation). Because TCC keys grants to the code signature,
-Developer ID signing is what makes a grant survive a rebuild. If a grant wedges, reset that
-one row, always passing the bundle id (a bare `tccutil reset Accessibility` wipes every
-app): `tccutil reset Accessibility com.conn3h.sotto`, then quit System Settings fully.
+in the repo; a linked worktree gets its own stage under `worktrees/<name>` there. The bundle
+is signed with the first Developer ID Application identity found, with `--options runtime`
+and the entitlements file; `make app` fails rather than falling back to ad-hoc, because an
+ad-hoc signature changes on every build. Two grants are needed and neither can be requested
+silently: Accessibility (event tap and AX insert) and Microphone (prompted on first
+dictation). Because TCC keys grants to the code signature, Developer ID signing is what
+makes a grant survive a rebuild. TCC and LaunchServices key on the bundle id, so only the
+canonical stage may be launched or installed: `make run` and `make install` refuse to work
+from a worktree or an overridden `STAGE`, and `make install` unregisters the staged copy so
+the installed app is the only registered one. While the grant is missing, every launch of
+any copy shows the Accessibility prompt. If a grant wedges, reset that one row, always
+passing the bundle id (a bare `tccutil reset Accessibility` wipes every app):
+`tccutil reset Accessibility com.conn3h.sotto`, then quit System Settings fully.
 
 ## 8. Testing and acceptance
 
