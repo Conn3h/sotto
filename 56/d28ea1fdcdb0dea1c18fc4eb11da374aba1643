@@ -1,0 +1,33 @@
+Sources/Sotto/Core/AudioCapture.swift
+  s_f4e8c10984db53::t_d598efeda707dc 142-149
+  s_f4e8c10984db53::t_f62be7d76b36a8 83
+  s_2b3c3fa3601f72::t_caddac3aeba9ea 150-152
+Sources/Sotto/App/AppComposition.swift
+  s_f4e8c10984db53::t_0029186d470362 9,13-14,18
+Sources/Sotto/App/SottoApp.swift
+  s_f4e8c10984db53::t_1d04d8666a287f 78
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "56d28ea1fdcdb0dea1c18fc4eb11da374aba1643",
+  "prompts": {},
+  "sessions": {
+    "s_2b3c3fa3601f72": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "cf521b43-401d-4752-a40c-bc7ca25f1c15",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Conrad <conne_95@msn.com>"
+    },
+    "s_f4e8c10984db53": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e8dccb0c-666c-4bbd-9636-7ff30a0fa1da",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Conrad <conne_95@msn.com>"
+    }
+  }
+}
