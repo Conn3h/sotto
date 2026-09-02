@@ -29,6 +29,12 @@ actor AppleSpeechEngine: TranscriptionEngine {
     private static let confirmedAssets = Mutex<Set<String>>([])
     private static let assetPrep = Mutex<[String: Task<Void, Error>]>([:])
 
+    /// The analyzer's preferred capture format is fixed per resolved locale. Computing it
+    /// calls into the Speech framework; cache it so a press does not pay that between
+    /// analyzer start and capture start. AVAudioFormat is an immutable reference type; the
+    /// Mutex confines access.
+    private static let preferredFormats = Mutex<[String: AVAudioFormat]>([:])
+
     private let requestedLocale: Locale
     private let biasPhrases: [String]
 
@@ -68,6 +74,9 @@ actor AppleSpeechEngine: TranscriptionEngine {
         let transcriber = makeTranscriber(locale: resolved)
         do {
             try await installAssetsIfNeeded(for: transcriber, locale: resolved)
+            if let format = await SpeechAnalyzer.bestAvailableAudioFormat(compatibleWith: [transcriber]) {
+                preferredFormats.withLock { $0[resolved.identifier] = format }
+            }
             Log.speech.info("prepare: speech ready for \(resolved.identifier, privacy: .public)")
         } catch {
             Log.speech.error("prepare failed: \(error.localizedDescription, privacy: .public)")
@@ -77,20 +86,18 @@ actor AppleSpeechEngine: TranscriptionEngine {
     // MARK: TranscriptionEngine
 
     func preferredInputFormat() async -> AVAudioFormat? {
-        if let transcriber {
-            return await SpeechAnalyzer.bestAvailableAudioFormat(compatibleWith: [transcriber])
-        }
-        guard SpeechTranscriber.isAvailable else {
-            Log.speech.error("preferredInputFormat: SpeechTranscriber is unavailable")
-            return nil
-        }
         guard let locale = await Self.resolveLocale(requestedLocale: requestedLocale) else {
             Log.speech.error("preferredInputFormat: no supported locale for \(self.requestedLocale.identifier, privacy: .public)")
             return nil
         }
-        let probe = Self.makeTranscriber(locale: locale)
-        let format = await SpeechAnalyzer.bestAvailableAudioFormat(compatibleWith: [probe])
-        if format == nil {
+        if let cached = Self.preferredFormats.withLock({ $0[locale.identifier] }) {
+            return cached
+        }
+        let source = transcriber ?? Self.makeTranscriber(locale: locale)
+        let format = await SpeechAnalyzer.bestAvailableAudioFormat(compatibleWith: [source])
+        if let format {
+            Self.preferredFormats.withLock { $0[locale.identifier] = format }
+        } else {
             Log.speech.error("preferredInputFormat: no compatible audio format reported")
         }
         return format
