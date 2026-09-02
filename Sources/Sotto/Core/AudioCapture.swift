@@ -80,7 +80,7 @@ final class AudioCapture: AudioCapturing {
                 Log.audio.info("capture start ignored: already running")
                 return
             }
-            let engine = AVAudioEngine()
+            let engine = storage.engine ?? AVAudioEngine()
             let input = engine.inputNode
             let native = input.outputFormat(forBus: 0)
             guard native.sampleRate > 0, native.channelCount > 0 else {
@@ -134,9 +134,19 @@ final class AudioCapture: AudioCapturing {
             }
             engine.inputNode.removeTap(onBus: 0)
             engine.stop()
-            storage.engine = nil
             storage.isRunning = false
             Log.audio.info("capture stop")
+        }
+    }
+
+    /// Pre-allocates the reusable engine so the first hold does not pay allocation. The
+    /// per-start `prepare()` still runs in `start()` after the tap is installed. Idempotent;
+    /// safe to call at launch.
+    func prepareEngine() {
+        storage.withLock { storage in
+            guard storage.engine == nil else { return }
+            storage.engine = AVAudioEngine()
+            Log.audio.info("audio engine pre-allocated")
         }
     }
 

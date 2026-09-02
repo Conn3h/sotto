@@ -6,13 +6,16 @@ import Foundation
 final class AppComposition {
     let controller: DictationController
     let pipeline: UtterancePipeline
+    let capture: AudioCapture
     // hud is added by milestone B2
 
     init() {
+        let capture = AudioCapture()
+        self.capture = capture
         let pipeline = UtterancePipeline()
         let controller = DictationController(
             hotkey: HotkeyMonitor(),
-            capture: AudioCapture(),
+            capture: capture,
             requestMicrophone: { await Permissions.requestMicrophone() },
             // Read per press so a dictionary edit biases the very next hold.
             makeEngine: { AppleSpeechEngine(locale: .current, biasPhrases: DictionaryStore.shared.biasPhrases) }

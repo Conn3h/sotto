@@ -75,6 +75,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         Task {
             await AppleSpeechEngine.prepare()
         }
+        composition.capture.prepareEngine()
         if composition.controller.activate() {
             Log.app.info("hotkey active")
         } else {
