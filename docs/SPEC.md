@@ -346,7 +346,9 @@ struct Utterance: Sendable {
          capture: any AudioCapturing,
          requestMicrophone: @escaping @MainActor () async -> Bool,
          makeEngine: @escaping @MainActor () -> any TranscriptionEngine,
-         errorDisplayDuration: Duration = .seconds(3))
+         errorDisplayDuration: Duration = .seconds(3),
+         engineFinishTimeout: Duration = .seconds(2),   // cap on engine.finish() in the terminal path
+         minimumHold: Duration = .milliseconds(250))    // a shorter release is a mis-tap: cancel, don't finalize
 
     /// Receives the final raw transcript once per utterance. Awaited before returning to idle.
     var onFinalTranscript: (@MainActor (String, Utterance) async -> Void)?
@@ -401,6 +403,13 @@ it (below).
 - If the session already has a terminal task, `.released` and `.aborted` return
   immediately (the first terminal event wins); `.failed` after a release is logged and
   ignored.
+- A `.released` held for less than `minimumHold` is a mis-tap, not dictation, and is
+  converted to `.tapped` before anything else: the engine is cancelled instead of finalized,
+  the state never becomes `.finishing`, and no callback fires, so a quick tap recovers
+  instantly rather than flashing "Transcribing..." while a finalize that saw almost no audio
+  stalls (the `engineFinishTimeout` above is the backstop for a longer release that still
+  captured nothing; `minimumHold` is the instant path for the obvious tap). `.tapped`
+  otherwise behaves exactly like `.aborted`.
 - Otherwise create and store the **terminal task** (main actor) and, for `.released`, set
   state `.finishing`, stop capture, zero the level, record the release instant. The task:
   1. Cancel the setup task and await it (so a suspended setup cannot resume later).
@@ -409,11 +418,11 @@ it (below).
      does not return in time it is abandoned and `engine.cancel()` is called instead, so a
      stalled finalize (a quick tap that releases just after listening begins can hang the
      analyzer's `finalizeAndFinishThroughEndOfInput`) can never wedge the utterance in
-     `.finishing`. `.failed` / `.aborted` → `await engine.cancel()`.
+     `.finishing`. `.tapped` / `.failed` / `.aborted` → `await engine.cancel()`.
   4. Await the consume task (it ends when the stream finishes).
   5. `.released` with a non-blank transcript → `await onFinalTranscript?(raw, utterance)`.
-  6. Clear the session and `holdStartedAt`; state `.idle` for `.released`/`.aborted`, or
-     `.error(message)` for `.failed`, which auto-returns to `.idle` after
+  6. Clear the session and `holdStartedAt`; state `.idle` for `.released`/`.tapped`/`.aborted`,
+     or `.error(message)` for `.failed`, which auto-returns to `.idle` after
      `errorDisplayDuration` unless the state has changed since.
 
 **Release**: `terminate(reason: .released)` if a session exists and it has no terminal
@@ -445,6 +454,10 @@ as its own test:
   the hotkey is restarted with the new key.
 - feed order: fifty buffers emitted by the fake capture arrive at the fake engine in order.
 - blank final transcript → no callback.
+- a release held for less than `minimumHold` → engine cancelled, state never `.finishing`,
+  no callback, idle (the quick-tap instant-recovery path).
+- a `.released` whose `engine.finish()` never returns → bounded by `engineFinishTimeout`,
+  after which the engine is cancelled and the controller reaches `.idle` (no wedge).
 - stale level callback (from the previous generation) does not change `level`.
 - `.button` source is passed through to the callback.
 

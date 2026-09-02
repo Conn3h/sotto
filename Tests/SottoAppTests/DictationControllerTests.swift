@@ -459,6 +459,30 @@ struct DictationControllerTests {
         #expect(harness.controller.liveTaskCount == 0)
     }
 
+    // MARK: A quick tap recovers instantly
+
+    @Test func quickTapCancelsInstantlyWithoutFinishing() async throws {
+        // A hold shorter than `minimumHold` is a mis-tap: the controller cancels the engine
+        // instead of finalizing it, never entering `.finishing`, and returns to idle at once
+        // with no callback. This is the instant-recovery path for the reported quick tap; the
+        // large threshold makes the test's near-instant release fall below it.
+        let engine = FakeEngine()
+        let harness = Harness(engines: [engine], minimumHold: .seconds(10))
+        harness.controller.activate()
+        try await harness.pressAndListen()
+
+        harness.hotkey.release()
+        // No "Transcribing..." flash: a tap never routes through .finishing on its way to idle.
+        #expect(harness.state != .finishing)
+
+        try await settle("idle") { harness.state == .idle }
+        #expect(harness.received.isEmpty)
+        #expect(await engine.cancelCalls == 1)
+        #expect(await engine.finishCalls == 0)
+        #expect(harness.controller.holdStartedAt == nil)
+        #expect(harness.controller.liveTaskCount == 0)
+    }
+
     // MARK: A stalled engine finish must not wedge the utterance
 
     @Test func stalledEngineFinishTimesOutAndRecovers() async throws {

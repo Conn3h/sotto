@@ -47,9 +47,14 @@ final class DictationController {
 
     private enum TerminalReason {
         case released
+        /// A release too brief to be dictation. Cancels the engine like `.aborted`, but is
+        /// its own case so the log and the SPEC can tell a mis-tap from a real abort.
+        case tapped
         case failed(String)
         case aborted
 
+        /// True only for `.released`: the path that finalizes the engine, fires the callback,
+        /// and shows `.finishing`. A tap is deliberately not a release.
         var isRelease: Bool {
             if case .released = self {
                 return true
@@ -60,6 +65,7 @@ final class DictationController {
         var label: String {
             switch self {
             case .released: "released"
+            case .tapped: "tapped"
             case .failed: "failed"
             case .aborted: "aborted"
             }
@@ -125,6 +131,14 @@ final class DictationController {
     /// wedge the controller in `.finishing` forever, ignoring Stop and new presses. If
     /// finish does not return within this, the engine is cancelled and the utterance ends.
     @ObservationIgnored private let engineFinishTimeout: Duration
+    /// A release held for less than this is a mis-tap, not dictation: the engine is
+    /// cancelled instead of finalized, the state never enters `.finishing`, and no final
+    /// callback fires. This is the instant-recovery path for a quick tap (the finalize would
+    /// otherwise stall, and even bounded by `engineFinishTimeout` it flashes "Transcribing..."
+    /// for the length of the timeout). Real speech, even one short word, comfortably clears
+    /// this; anything longer that still captured no usable audio falls back to the bounded
+    /// finish. Zero disables the fast path, so a release is always finalized.
+    @ObservationIgnored private let minimumHold: Duration
     @ObservationIgnored private let clock = ContinuousClock()
     @ObservationIgnored private var generation = 0
     @ObservationIgnored private var session: Session?
@@ -136,7 +150,8 @@ final class DictationController {
         requestMicrophone: @escaping @MainActor () async -> Bool,
         makeEngine: @escaping @MainActor () -> any TranscriptionEngine,
         errorDisplayDuration: Duration = .seconds(3),
-        engineFinishTimeout: Duration = .seconds(2)
+        engineFinishTimeout: Duration = .seconds(2),
+        minimumHold: Duration = .milliseconds(250)
     ) {
         self.hotkey = hotkey
         self.capture = capture
@@ -144,6 +159,7 @@ final class DictationController {
         self.makeEngine = makeEngine
         self.errorDisplayDuration = errorDisplayDuration
         self.engineFinishTimeout = engineFinishTimeout
+        self.minimumHold = minimumHold
     }
 
     // MARK: Public controls
@@ -374,13 +390,13 @@ final class DictationController {
 
     /// The only path out of an utterance. The first terminal event wins; a failure after a
     /// release is logged and ignored.
-    private func terminate(_ session: Session, reason: TerminalReason) {
+    private func terminate(_ session: Session, reason requestedReason: TerminalReason) {
         guard session === self.session else {
-            Log.app.debug("terminal event \(reason.label, privacy: .public) for stale utterance \(session.id, privacy: .public) ignored")
+            Log.app.debug("terminal event \(requestedReason.label, privacy: .public) for stale utterance \(session.id, privacy: .public) ignored")
             return
         }
         if session.isTerminating {
-            if case .failed(let message) = reason {
+            if case .failed(let message) = requestedReason {
                 Log.app.error(
                     "utterance \(session.id, privacy: .public) failure after terminal event ignored: \(message, privacy: .public)"
                 )
@@ -388,8 +404,24 @@ final class DictationController {
             return
         }
         session.setupTask?.cancel()
-        session.releasedAt = clock.now
+        let releasedInstant = clock.now
+        session.releasedAt = releasedInstant
         session.releasedDate = Date()
+
+        // A release held for less than `minimumHold` is a mis-tap, not dictation: cancel the
+        // engine instead of finalizing it, so the utterance never enters `.finishing` and
+        // recovery is instant. `minimumHold == .zero` never triggers this (a hold is never
+        // negative), so tests that release immediately keep the finalize path.
+        let reason: TerminalReason
+        if requestedReason.isRelease, (releasedInstant - session.pressedAt) < minimumHold {
+            reason = .tapped
+            Log.app.info(
+                "utterance \(session.id, privacy: .public) released after \(session.heldSeconds(now: releasedInstant), privacy: .public)s; treating as a tap, cancelling"
+            )
+        } else {
+            reason = requestedReason
+        }
+
         capture.stop()
         level = 0
         if reason.isRelease {
@@ -454,7 +486,7 @@ final class DictationController {
         self.session = nil
         holdStartedAt = nil
         switch reason {
-        case .released, .aborted:
+        case .released, .tapped, .aborted:
             state = .idle
         case .failed(let message):
             state = .error(message)
