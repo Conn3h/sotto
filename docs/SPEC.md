@@ -716,7 +716,7 @@ public struct DictionaryCorrector: Sendable {
     public init(entries: [DictionaryEntry])
     public var isEmpty: Bool
     public func apply(to text: String) -> (text: String, applied: [AppliedCorrection])
-    public static let biasLimit: Int   // 40
+    public static let biasLimit: Int   // 100
     public static func biasPhrases(from entries: [DictionaryEntry]) -> [String]
 }
 
@@ -764,9 +764,11 @@ oracle; they are authored by the orchestrator, not the implementer):
 
 `biasPhrases`: the `write` side of every enabled entry (terms and corrections), trimmed,
 skipping empties, de-duplicated case-insensitively keeping the first occurrence, in entry
-order, capped at `biasLimit` (40). Kept short on purpose: long context lists make speech
-models drift and invent primed words on quiet audio, which is worse than the misspelling
-they were meant to fix.
+order, capped at `biasLimit` (100). Distinct write targets fill this budget (corrections
+sharing a target cost one slot; the correction pass itself is uncapped), so a real
+per-project vocabulary fits without silently dropping terms. Still bounded on purpose: an
+unbounded context list makes speech models drift and invent primed words on quiet audio,
+which is worse than the misspelling it was meant to fix.
 
 `DictionaryWarning.check` (only corrections can misfire; terms return `[]`). Exact
 messages, so the UI and tests agree:

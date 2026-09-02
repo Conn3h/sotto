@@ -3,8 +3,8 @@ import Testing
 
 @Suite("DictionaryCorrector.biasPhrases")
 struct DictionaryCorrectorBiasTests {
-    @Test func biasLimitIsForty() {
-        #expect(DictionaryCorrector.biasLimit == 40)
+    @Test func biasLimitIsOneHundred() {
+        #expect(DictionaryCorrector.biasLimit == 100)
     }
 
     @Test func phrasesAreWriteSideInEntryOrder() {

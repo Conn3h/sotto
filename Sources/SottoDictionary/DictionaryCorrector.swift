@@ -88,7 +88,12 @@ public struct DictionaryCorrector: Sendable {
 
     public var isEmpty: Bool { candidates.isEmpty }
 
-    public static let biasLimit = 40
+    /// Cap on how many phrases are handed to the recognizer as contextual bias. Distinct
+    /// write targets fill this budget (corrections sharing a target cost one slot); the
+    /// correction pass itself is uncapped. Kept generous so a real per-project vocabulary
+    /// fits without silently dropping terms, while staying well within what contextual
+    /// biasing handles before it dilutes.
+    public static let biasLimit = 100
 
     /// The `write` side of every enabled entry (terms and corrections), trimmed, skipping
     /// empties, de-duplicated case-insensitively (keeping the first occurrence), in entry
