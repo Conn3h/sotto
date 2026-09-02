@@ -116,12 +116,22 @@ struct SettingsWindow: View {
             Text(title)
                 .font(DS.Font.body)
                 .foregroundStyle(DS.Color.ink)
-            Text(granted ? "Granted" : "Not granted")
-                .font(DS.Font.caption)
-                .foregroundStyle(DS.Color.inkTertiary)
+            if granted {
+                HStack(spacing: DS.Space.tight) {
+                    Image(systemName: "checkmark")
+                        .foregroundStyle(DS.Color.ink)
+                    Text("Granted")
+                        .font(DS.Font.caption)
+                        .foregroundStyle(DS.Color.inkTertiary)
+                }
+            } else {
+                Text("Not granted")
+                    .font(DS.Font.caption)
+                    .foregroundStyle(DS.Color.inkTertiary)
+            }
             Spacer()
             if !granted {
-                Button("Open System Settings", action: open)
+                Button("Grant\u{2026}", action: open)
             }
         }
     }

@@ -4,7 +4,7 @@ import SwiftUI
 
 /// The History tab (spec §6.14): search, newest-first runs (`HistoryStore.shared.runs` is
 /// already ordered that way), hover-to-delete rows with no confirmation, and a footer whose
-/// "Delete all" does confirm.
+/// "Delete all…" does confirm.
 @MainActor
 struct HistoryPanel: View {
     @State private var query = ""
@@ -38,12 +38,16 @@ struct HistoryPanel: View {
                 )
             } else {
                 ScrollView {
-                    LazyVStack(spacing: DS.Space.snug) {
-                        ForEach(filtered) { run in
+                    LazyVStack(spacing: DS.Space.none) {
+                        ForEach(Array(filtered.enumerated()), id: \.element.id) { index, run in
+                            if index > 0 {
+                                Rectangle()
+                                    .fill(DS.Color.hairline)
+                                    .frame(height: DS.Border.hairline)
+                            }
                             HistoryRow(run: run)
                         }
                     }
-                    .padding(.horizontal, DS.Space.roomy)
                     .padding(.bottom, DS.Space.roomy)
                 }
             }
@@ -58,7 +62,7 @@ struct HistoryPanel: View {
                 .font(DS.Font.caption)
                 .foregroundStyle(DS.Color.inkTertiary)
             Spacer()
-            Button("Delete all") {
+            Button("Delete all\u{2026}") {
                 confirmingDeleteAll = true
             }
             .disabled(runs.isEmpty)
@@ -85,8 +89,9 @@ struct HistoryPanel: View {
     }
 }
 
-/// One run: metadata chips, the selectable text, correction badges, a hover-only delete, and
-/// a Copy button with a transient "Copied" state.
+/// One run: a fixed-width time-of-day column, the transcript, a meta line ("Apple · typed ·
+/// 0.15 s"), correction badges when any fired, and a hover-only Copy/Delete cluster at the
+/// trailing edge. Flush to the well's full width — a hairline separates rows, not a card.
 @MainActor
 private struct HistoryRow: View {
     let run: DictationRun
@@ -107,20 +112,35 @@ private struct HistoryRow: View {
     private static let locale = Locale(identifier: "en_US_POSIX")
 
     var body: some View {
-        VStack(alignment: .leading, spacing: DS.Space.snug) {
-            HStack(spacing: DS.Space.snug) {
-                Chip { Text(run.engine) }
-                Chip { Text(sourceLabel) }
-                Text(String(format: "%.2fs", locale: Self.locale, run.processSeconds))
-                    .font(DS.Font.caption)
-                    .foregroundStyle(DS.Color.inkTertiary)
-                Text(Self.timeOfDay.string(from: run.date))
+        HStack(alignment: .top, spacing: DS.Space.base) {
+            Text(Self.timeOfDay.string(from: run.date))
+                .font(DS.Font.caption.monospacedDigit())
+                .foregroundStyle(DS.Color.inkTertiary)
+                .frame(width: DS.Metric.historyTimeColumnWidth, alignment: .leading)
+
+            VStack(alignment: .leading, spacing: DS.Space.snug) {
+                Text(run.text)
+                    .font(DS.Font.body)
+                    .foregroundStyle(DS.Color.ink)
+                    .textSelection(.enabled)
+
+                Text(metaLine)
                     .font(DS.Font.caption)
                     .foregroundStyle(DS.Color.inkTertiary)
 
-                Spacer()
+                if let corrections = run.corrections, !corrections.isEmpty {
+                    HStack(spacing: DS.Space.snug) {
+                        ForEach(corrections.indices, id: \.self) { index in
+                            CorrectionBadge(correction: corrections[index])
+                        }
+                    }
+                }
+            }
 
-                if isHovering {
+            Spacer(minLength: DS.Space.roomy)
+
+            if isHovering {
+                HStack(spacing: DS.Space.base) {
                     Button {
                         HistoryLog.delete(ids: [run.id])
                     } label: {
@@ -129,33 +149,21 @@ private struct HistoryRow: View {
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel("Delete recording")
-                }
 
-                Button {
-                    copy()
-                } label: {
-                    Text(showCopied ? "Copied" : "Copy")
-                        .font(DS.Font.caption)
-                        .foregroundStyle(DS.Color.inkSecondary)
-                }
-                .buttonStyle(.plain)
-            }
-
-            Text(run.text)
-                .font(DS.Font.body)
-                .foregroundStyle(DS.Color.ink)
-                .textSelection(.enabled)
-
-            if let corrections = run.corrections, !corrections.isEmpty {
-                HStack(spacing: DS.Space.snug) {
-                    ForEach(corrections.indices, id: \.self) { index in
-                        CorrectionBadge(correction: corrections[index])
+                    Button {
+                        copy()
+                    } label: {
+                        Text(showCopied ? "Copied" : "Copy")
+                            .font(DS.Font.caption)
+                            .foregroundStyle(DS.Color.inkSecondary)
                     }
+                    .buttonStyle(.plain)
                 }
             }
         }
-        .padding(DS.Space.base)
-        .background(RoundedRectangle(cornerRadius: DS.Radius.control).fill(DS.Color.panelRaised))
+        .padding(.horizontal, DS.Space.roomy)
+        .padding(.vertical, DS.Space.base)
+        .background(isHovering ? DS.Color.panel : DS.Color.clear)
         .onHover { hovering in
             isHovering = hovering
         }
@@ -167,6 +175,11 @@ private struct HistoryRow: View {
 
     private var sourceLabel: String {
         run.source == "hotkey" ? "typed" : "recorded"
+    }
+
+    private var metaLine: String {
+        let seconds = String(format: "%.2f s", locale: Self.locale, run.processSeconds)
+        return "\(run.engine) \u{00B7} \(sourceLabel) \u{00B7} \(seconds)"
     }
 
     private func copy() {

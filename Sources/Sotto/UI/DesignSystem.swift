@@ -68,6 +68,24 @@ extension DS {
         /// Fully transparent fill, for the unselected state of a control that otherwise
         /// paints `selection`.
         static let clear = SwiftUI.Color.clear
+
+        // Not named in §6.14; added by the visual glow-up pass (still "quiet instrument",
+        // §6.14). Constant across appearance: both `accent` variants below are mid-toned
+        // enough that a fixed warm off-white reads clearly on either.
+        /// Text and iconography drawn on top of a filled `accent` surface, e.g. the Record
+        /// key's label while recording. Never used on any other fill.
+        static let inkOnAccent = adaptiveColor("DS.inkOnAccent", light: 0xFAF7F0, dark: 0xFAF7F0)
+
+        /// A slightly deeper well than `panel`, for the History/Dictionary content area: the
+        /// masthead and its tabs sit on `ground`, the switched content recedes one step
+        /// further so the two rows scanned most often (masthead, list) read as distinct
+        /// planes without a shadow.
+        static let panelSunken = adaptiveColor("DS.panelSunken", light: 0xF0EDE5, dark: 0x0F0E0D)
+
+        /// A more visible hairline than the default, for the one boundary that must read as
+        /// a deliberate edge rather than a seam: the masthead's bottom rule, now that the
+        /// window is one matte plate under a hidden title bar.
+        static let hairlineStrong = adaptiveColor("DS.hairlineStrong", light: 0xC7BFAE, dark: 0x3D3A34)
     }
 }
 
@@ -161,6 +179,19 @@ extension DS {
         static func icon(size: CGFloat) -> SwiftUI.Font {
             .system(size: size)
         }
+
+        // Not named in §6.14; added by the visual glow-up pass. Pair with
+        // `.tracking(DS.Metric.eyebrowTracking)` at the call site — `Font` carries no
+        // tracking of its own — and with the literal, already-uppercase word: this style is
+        // reserved for the masthead's four status words (READY, LISTENING, TYPED, RECORDED)
+        // and the dictionary's kind tag.
+        /// 11 pt medium, meant to run uppercase and tracked.
+        static let eyebrow = SwiftUI.Font.system(size: 11, weight: .medium)
+
+        // Not named in §6.14; added by the visual glow-up pass for the masthead's elapsed
+        // counter, the one number in the window meant to be read from across a room.
+        /// Large tabular-digit readout: about 28 pt, regular weight, monospaced digits.
+        static let readoutLarge = SwiftUI.Font.system(size: 28, weight: .regular).monospacedDigit()
     }
 }
 
@@ -193,6 +224,15 @@ extension DS {
         static let elapsedTick: Double = 0.1
         /// Refresh interval, in seconds, for `SettingsWindow`'s permission-status poll.
         static let permissionPollInterval: Double = 1.0
+
+        // Not named in §6.14; added by the visual glow-up pass.
+        /// Seconds the masthead status eyebrow holds "TYPED …" / "RECORDED …" after an
+        /// utterance before it reverts to "READY".
+        static let statusHoldSeconds: Double = 4.0
+        /// Seconds per idle-ripple cycle in the masthead's level meter. A separate token
+        /// from `hudMeterCycle` even though the value matches, so each meter's owner can be
+        /// retuned independently.
+        static let mastheadMeterCycle: Double = 0.9
     }
 }
 
@@ -263,6 +303,34 @@ extension DS {
         /// Number of lines the HUD's status label reserves, so the meter above it never
         /// shifts as the transcript wraps from one line to two.
         static let hudLineCount: Int = 2
+
+        // Not named in §6.14; added by the visual glow-up pass for the main window's
+        // masthead, the instrument's face (§6.14 direction: "quiet instrument").
+        /// Bar count for the masthead's full-width level meter. Deliberately separate from
+        /// `meterBarCount`, which no other view still uses after this pass, so a future
+        /// batch can see at a glance which token belongs to which meter.
+        static let mastheadBarCount: Int = 40
+        /// Width of one bar in the masthead meter. Spacing is computed at layout time to
+        /// fill the available width evenly, so there is no paired spacing token.
+        static let mastheadBarWidth: CGFloat = 2
+        /// Rest height of a masthead meter bar, whether idle or lit.
+        static let mastheadBarFloor: CGFloat = 3
+        /// Peak height a masthead meter bar reaches at full level.
+        static let mastheadBarMaxHeight: CGFloat = 28
+        /// Fraction (0...1) of the floor-to-peak range the idle ripple uses: "a faint idle
+        /// ripple at very low amplitude," never mistaken for the meter actually reading a
+        /// level.
+        static let mastheadRippleAmplitude: Double = 0.18
+        /// Scale factor applied to the Record key while pressed.
+        static let pressedScale: CGFloat = 0.96
+        /// Width of the fixed time-of-day column in a `HistoryRow`.
+        static let historyTimeColumnWidth: CGFloat = 56
+        /// Width of the fixed kind-tag column ("term" / "fix") in a `DictionaryRow`.
+        static let dictionaryKindTagWidth: CGFloat = 40
+        /// Letter-spacing for `DS.Font.eyebrow`, about 0.08 em at that font's 11 pt size.
+        /// `Font` carries no tracking of its own, so this pairs with it via
+        /// `.tracking(DS.Metric.eyebrowTracking)` at each call site.
+        static let eyebrowTracking: CGFloat = 0.9
     }
 }
 

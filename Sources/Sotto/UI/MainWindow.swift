@@ -1,8 +1,9 @@
 import SwiftUI
 
-/// The main window (spec §6.14): a transport strip for button-triggered recording, then a
-/// History / Dictionary tab area. Hosted by the `Window("Sotto", id: "main")` scene in
-/// `SottoApp`.
+/// The main window (spec §6.14): the masthead — the instrument's face, with the Record key,
+/// the full-width level meter and the elapsed/status readout — then a History / Dictionary
+/// tab area. Hosted by the `Window("Sotto", id: "main")` scene in `SottoApp`, which gives it
+/// a hidden title bar so this view's own `ground` fill reads as one matte plate under it.
 @MainActor
 struct MainWindow: View {
     let controller: DictationController
@@ -16,104 +17,214 @@ struct MainWindow: View {
 
     var body: some View {
         VStack(spacing: DS.Space.none) {
-            TransportStrip(controller: controller)
+            Masthead(controller: controller)
                 .padding(DS.Space.panel)
 
             Rectangle()
-                .fill(DS.Color.hairline)
+                .fill(DS.Color.hairlineStrong)
                 .frame(height: DS.Border.hairline)
 
             VStack(spacing: DS.Space.none) {
-                SegmentedChoice(options: [Tab.history, .dictionary], selection: $tab) { option in
-                    switch option {
-                    case .history: "History"
-                    case .dictionary: "Dictionary"
+                TextTabs(
+                    options: [Tab.history, .dictionary],
+                    selection: $tab,
+                    count: { option in
+                        option == .history ? HistoryStore.shared.runs.count : nil
+                    },
+                    label: { option in
+                        switch option {
+                        case .history: "History"
+                        case .dictionary: "Dictionary"
+                        }
                     }
-                }
-                .padding(DS.Space.roomy)
+                )
+                .padding(.horizontal, DS.Space.roomy)
+                .padding(.vertical, DS.Space.roomy)
 
-                Group {
-                    switch tab {
-                    case .history:
-                        HistoryPanel()
-                    case .dictionary:
-                        DictionaryPanel()
+                ContentWell {
+                    Group {
+                        switch tab {
+                        case .history:
+                            HistoryPanel()
+                        case .dictionary:
+                            DictionaryPanel()
+                        }
                     }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .padding(.horizontal, DS.Space.roomy)
+                .padding(.bottom, DS.Space.roomy)
             }
         }
         .background(DS.Color.ground)
     }
 }
 
-/// Record/Stop, the recording lamp, the live level meter, and the elapsed-time readout.
+/// The instrument's face: the Record key, the full-width masthead meter, and the elapsed
+/// counter with its status eyebrow beneath it. The status word reads "LISTENING" while
+/// active, "READY" at rest, or — for `DS.Motion.statusHoldSeconds` after an utterance that
+/// actually produced a history run — "TYPED …" / "RECORDED …" with that run's time.
 @MainActor
-private struct TransportStrip: View {
+private struct Masthead: View {
     let controller: DictationController
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    /// A run captured to a completion label: equatable so a stale timer can tell it is no
+    /// longer the one showing (mirrors `HistoryRow`'s copy-feedback generation guard).
+    private struct CompletionStatus: Equatable {
+        let word: String
+        let timeText: String
+    }
+
+    @State private var completion: CompletionStatus?
+    @State private var completionTask: Task<Void, Never>?
+    /// The newest run's id when the current utterance began, so going idle can tell whether
+    /// a run was actually appended (a release) or not (an abort, or an error that timed
+    /// itself back to idle) before claiming "TYPED" / "RECORDED".
+    @State private var baselineRunID: DictationRun.ID?
+
+    private static let timeOfDay: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .none
+        formatter.timeStyle = .short
+        return formatter
+    }()
 
     var body: some View {
         VStack(alignment: .leading, spacing: DS.Space.snug) {
-            HStack(spacing: DS.Space.base) {
-                Circle()
-                    .fill(controller.state.isActive ? DS.Color.accent : DS.Color.inkTertiary)
-                    .frame(width: DS.Metric.lampSize, height: DS.Metric.lampSize)
-                    .accessibilityLabel(controller.state.isActive ? "Recording" : "Not recording")
+            HStack(spacing: DS.Space.roomy) {
+                RecordKey(controller: controller)
 
-                Button {
-                    if controller.state.isActive {
-                        controller.stopButtonRecording()
-                    } else {
-                        controller.startButtonRecording()
-                    }
-                } label: {
-                    Text(controller.state.isActive ? "Stop" : "Record")
-                        .frame(minWidth: DS.Metric.keycapMinWidth)
-                }
-                .buttonStyle(TransportButtonStyle(isActive: controller.state.isActive))
+                MastheadMeterView(
+                    level: controller.level,
+                    isActive: controller.state.isActive,
+                    reduceMotion: reduceMotion
+                )
+                .frame(maxWidth: .infinity)
 
-                LevelMeterView(level: controller.level, isActive: controller.state.isActive)
-
-                Spacer(minLength: DS.Space.roomy)
-
-                ElapsedReadout(holdStartedAt: controller.holdStartedAt, isActive: controller.state.isActive)
+                statusReadout
             }
 
             Text("Recordings started here are saved to History, not typed.")
                 .font(DS.Font.caption)
                 .foregroundStyle(DS.Color.inkTertiary)
         }
+        .onChange(of: controller.state) { oldValue, newValue in
+            handle(old: oldValue, new: newValue)
+        }
+        .onDisappear {
+            completionTask?.cancel()
+        }
+    }
+
+    private var statusReadout: some View {
+        VStack(alignment: .trailing, spacing: DS.Space.tight) {
+            ElapsedReadout(holdStartedAt: controller.holdStartedAt, isActive: controller.state.isActive)
+
+            HStack(spacing: DS.Space.tight) {
+                if controller.state.isActive {
+                    Circle()
+                        .fill(DS.Color.accent)
+                        .frame(width: DS.Metric.lampSize, height: DS.Metric.lampSize)
+                        .accessibilityLabel("Recording")
+                }
+                Text(statusWord)
+                    .font(DS.Font.eyebrow)
+                    .tracking(DS.Metric.eyebrowTracking)
+                    .foregroundStyle(DS.Color.inkSecondary)
+            }
+        }
+    }
+
+    private var statusWord: String {
+        if controller.state.isActive {
+            return "LISTENING"
+        }
+        if let completion {
+            return "\(completion.word) \(completion.timeText)"
+        }
+        return "READY"
+    }
+
+    private func handle(old: DictationController.State, new: DictationController.State) {
+        if new.isActive, !old.isActive {
+            baselineRunID = HistoryStore.shared.runs.first?.id
+        }
+        guard new == .idle else {
+            return
+        }
+        defer { baselineRunID = nil }
+        guard let latest = HistoryStore.shared.runs.first, latest.id != baselineRunID else {
+            return
+        }
+        show(latest)
+    }
+
+    private func show(_ run: DictationRun) {
+        completionTask?.cancel()
+        let status = CompletionStatus(
+            word: run.source == "hotkey" ? "TYPED" : "RECORDED",
+            timeText: Self.timeOfDay.string(from: run.date)
+        )
+        completion = status
+        completionTask = Task {
+            do {
+                try await Task.sleep(for: .seconds(DS.Motion.statusHoldSeconds))
+            } catch {
+                Log.app.debug("masthead status timer cancelled")
+                return
+            }
+            guard completion == status else {
+                return
+            }
+            completion = nil
+        }
     }
 }
 
-/// Flat fills only: `DS.Color.accent` while recording (the button's one other permitted use
-/// of the recording colour, alongside the lamp), `panelRaised` otherwise, darkening to
-/// `panel` while pressed.
+/// Record/Stop: a pill with an ink outline at rest, a coral fill and `inkOnAccent` label
+/// while recording, and a small scale-down on press.
 @MainActor
-private struct TransportButtonStyle: ButtonStyle {
+private struct RecordKey: View {
+    let controller: DictationController
+
+    var body: some View {
+        Button {
+            if controller.state.isActive {
+                controller.stopButtonRecording()
+            } else {
+                controller.startButtonRecording()
+            }
+        } label: {
+            Text(controller.state.isActive ? "Stop" : "Record")
+                .frame(minWidth: DS.Metric.keycapMinWidth)
+        }
+        .buttonStyle(RecordKeyStyle(isActive: controller.state.isActive))
+    }
+}
+
+@MainActor
+private struct RecordKeyStyle: ButtonStyle {
     let isActive: Bool
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(DS.Font.label)
-            .foregroundStyle(isActive ? DS.Color.panel : DS.Color.ink)
+            .foregroundStyle(isActive ? DS.Color.inkOnAccent : DS.Color.ink)
             .padding(.horizontal, DS.Space.roomy)
             .padding(.vertical, DS.Space.snug)
-            .background(
-                RoundedRectangle(cornerRadius: DS.Radius.control)
-                    .fill(fill(pressed: configuration.isPressed))
-            )
+            .background(Capsule().fill(isActive ? DS.Color.accent : DS.Color.clear))
             .overlay(
-                RoundedRectangle(cornerRadius: DS.Radius.control)
-                    .stroke(DS.Color.hairline, lineWidth: DS.Border.hairline)
+                Capsule().stroke(isActive ? DS.Color.clear : DS.Color.ink, lineWidth: DS.Border.hairline)
             )
-    }
-
-    private func fill(pressed: Bool) -> SwiftUI.Color {
-        if isActive {
-            return DS.Color.accent
-        }
-        return pressed ? DS.Color.panel : DS.Color.panelRaised
+            .scaleEffect(configuration.isPressed ? DS.Metric.pressedScale : 1)
+            .animation(
+                reduceMotion ? nil : .easeOut(duration: DS.Motion.quick),
+                value: configuration.isPressed
+            )
     }
 }
 
@@ -130,7 +241,7 @@ private struct ElapsedReadout: View {
     var body: some View {
         TimelineView(.periodic(from: .now, by: DS.Motion.elapsedTick)) { context in
             Text(text(now: context.date))
-                .font(DS.Font.readout)
+                .font(DS.Font.readoutLarge)
                 .foregroundStyle(DS.Color.ink)
         }
     }
