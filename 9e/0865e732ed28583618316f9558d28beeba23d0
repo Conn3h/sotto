@@ -1,0 +1,25 @@
+.gitignore
+  s_eebd3ef0b290cc::t_598a6dd47a5f43 8-9
+Makefile
+  s_eebd3ef0b290cc::t_c87255dd6561fa 25,62-68
+Resources/Info.plist
+  s_eebd3ef0b290cc::t_73af1ef38b1a79 19-20
+Tools/makeicon.swift
+  s_eebd3ef0b290cc::t_5d0a32891f61e9 1-94
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "9e0865e732ed28583618316f9558d28beeba23d0",
+  "prompts": {},
+  "sessions": {
+    "s_eebd3ef0b290cc": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "92b309ea-9204-4668-a7f0-b7b05be4b19a",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Conrad <conne_95@msn.com>"
+    }
+  }
+}
