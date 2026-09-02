@@ -1,13 +1,22 @@
 import SwiftUI
 
-/// The HUD's content (spec §6.14): a rippling level meter above a two-line status label, on
-/// a material card. Hosted by `HUDPanel` via `NSHostingView`.
+/// The HUD's content (spec §6.14): a rippling level meter on the left, a coral lamp dot that
+/// lights only while listening, then the two-line status text — all in one row, on a
+/// material card. Hosted by `HUDPanel` via `NSHostingView`.
 struct HUDView: View {
     let controller: DictationController
 
     var body: some View {
-        VStack(spacing: DS.Space.tight) {
+        HStack(spacing: DS.Space.base) {
             HUDMeterView(level: controller.level, isActive: controller.state.isActive)
+
+            if case .listening = controller.state {
+                Circle()
+                    .fill(DS.Color.accent)
+                    .frame(width: DS.Metric.lampSize, height: DS.Metric.lampSize)
+                    .accessibilityHidden(true)
+            }
+
             HUDLabel(state: controller.state, transcript: controller.transcript)
         }
         .padding(.horizontal, DS.Space.roomy)
@@ -33,10 +42,10 @@ private struct HUDLabel: View {
         Text(text)
             .font(DS.Font.body)
             .foregroundStyle(color)
-            .multilineTextAlignment(.center)
+            .multilineTextAlignment(.leading)
             .lineLimit(DS.Metric.hudLineCount, reservesSpace: true)
             .truncationMode(.head)
-            .frame(maxWidth: .infinity)
+            .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var text: String {

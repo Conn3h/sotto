@@ -12,7 +12,9 @@ struct SottoApp: App {
         Window("Sotto", id: "main") {
             MainWindow(controller: controller)
                 .frame(minWidth: DS.Metric.windowMinWidth, minHeight: DS.Metric.windowMinHeight)
+                .containerBackground(DS.Color.ground, for: .window)
         }
+        .windowStyle(.hiddenTitleBar)
         .defaultSize(width: DS.Metric.windowDefaultWidth, height: DS.Metric.windowDefaultHeight)
         .windowResizability(.contentMinSize)
         .commands {

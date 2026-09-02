@@ -1,8 +1,8 @@
 import SottoDictionary
 import SwiftUI
 
-/// The Dictionary tab (spec §6.14): search, an add row with inline `DictionaryWarning`
-/// messages, and editable rows for every entry.
+/// The Dictionary tab (spec §6.14): search, a quiet inline add form, and editable rows for
+/// every entry.
 @MainActor
 struct DictionaryPanel: View {
     @State private var query = ""
@@ -25,19 +25,23 @@ struct DictionaryPanel: View {
             if filtered.isEmpty {
                 EmptyStateView(
                     systemImage: "book",
-                    title: query.isEmpty ? "No entries yet" : "No matches",
+                    title: query.isEmpty ? "Nothing taught yet" : "No matches",
                     message: query.isEmpty
-                        ? "Add a term the engine should know, or a correction for something it mishears."
+                        ? "Add a name or a word the engine keeps getting wrong."
                         : "Try a different search."
                 )
             } else {
                 ScrollView {
-                    LazyVStack(spacing: DS.Space.snug) {
-                        ForEach(filtered) { entry in
+                    LazyVStack(spacing: DS.Space.none) {
+                        ForEach(Array(filtered.enumerated()), id: \.element.id) { index, entry in
+                            if index > 0 {
+                                Rectangle()
+                                    .fill(DS.Color.hairline)
+                                    .frame(height: DS.Border.hairline)
+                            }
                             DictionaryRow(entry: entry)
                         }
                     }
-                    .padding(.horizontal, DS.Space.roomy)
                     .padding(.bottom, DS.Space.roomy)
                 }
             }
@@ -66,8 +70,9 @@ private struct RepresentabilityIssueList: View {
     }
 }
 
-/// Composes a new entry: a term/correction kind toggle, the hear/write fields (hear hidden
-/// for terms), inline representability issues and warnings for the entry as typed, and Add.
+/// A single quiet inline form at the top of the well: a small kind switch (term /
+/// correction), the hear/write fields (hear hidden for terms), inline representability
+/// issues and warnings for the entry as typed, and a plain text "Add".
 @MainActor
 private struct AddEntryRow: View {
     private static let kinds: [DictionaryEntry.Kind] = [.term, .correction]
@@ -101,40 +106,39 @@ private struct AddEntryRow: View {
     }
 
     var body: some View {
-        Panel {
-            VStack(alignment: .leading, spacing: DS.Space.base) {
-                SectionHeader(title: "Add to dictionary")
-
-                SegmentedChoice(options: Self.kinds, selection: $kind) { option in
-                    option == .term ? "Term" : "Correction"
-                }
-
-                if kind == .correction {
-                    field("Hear (what the engine mishears)", text: $hear)
-                }
-                field(kind == .term ? "Term" : "Write (what it should say)", text: $write)
-
-                RepresentabilityIssueList(issues: issues)
-
-                if DictionaryStore.shared.loadFailed {
-                    Text(Self.loadFailedMessage)
-                        .font(DS.Font.caption)
-                        .foregroundStyle(DS.Color.ink)
-                }
-
-                ForEach(warnings) { warning in
-                    Text(warning.message)
-                        .font(DS.Font.caption)
-                        .foregroundStyle(DS.Color.inkSecondary)
-                }
-
-                Button("Add") {
-                    DictionaryStore.shared.add(DictionaryEntry(kind: kind, write: trimmedWrite, hear: trimmedHear))
-                    write = ""
-                    hear = ""
-                }
-                .disabled(!canAdd)
+        VStack(alignment: .leading, spacing: DS.Space.base) {
+            TextTabs(options: Self.kinds, selection: $kind, size: .small) { option in
+                option == .term ? "Term" : "Correction"
             }
+
+            if kind == .correction {
+                field("Hear (what the engine mishears)", text: $hear)
+            }
+            field(kind == .term ? "Term" : "Write (what it should say)", text: $write)
+
+            RepresentabilityIssueList(issues: issues)
+
+            if DictionaryStore.shared.loadFailed {
+                Text(Self.loadFailedMessage)
+                    .font(DS.Font.caption)
+                    .foregroundStyle(DS.Color.ink)
+            }
+
+            ForEach(warnings) { warning in
+                Text(warning.message)
+                    .font(DS.Font.caption)
+                    .foregroundStyle(DS.Color.inkSecondary)
+            }
+
+            Button("Add") {
+                DictionaryStore.shared.add(DictionaryEntry(kind: kind, write: trimmedWrite, hear: trimmedHear))
+                write = ""
+                hear = ""
+            }
+            .buttonStyle(.plain)
+            .font(DS.Font.label)
+            .foregroundStyle(canAdd ? DS.Color.ink : DS.Color.inkTertiary)
+            .disabled(!canAdd)
         }
     }
 
@@ -156,8 +160,9 @@ private struct AddEntryRow: View {
     }
 }
 
-/// One entry: an enable toggle, the term or "heard → written" text (inline-editable), and
-/// delete.
+/// One entry, flush to the well's full width with a hairline separator, not a card: a tiny
+/// kind tag ("term" / "fix") at the leading edge, the term or "heard → written" text (or the
+/// inline edit fields), and the enable toggle plus edit/delete on hover at the trailing edge.
 ///
 /// `draftWrite`/`draftHear` are refreshed from `entry` every time Edit begins (not only at
 /// `init`), so a hand edit to the dictionary file that `reloadFromDisk()` picks up under a
@@ -167,6 +172,7 @@ private struct DictionaryRow: View {
     let entry: DictionaryEntry
 
     @State private var isEditing = false
+    @State private var isHovering = false
     @State private var draftWrite: String
     @State private var draftHear: String
 
@@ -189,24 +195,32 @@ private struct DictionaryRow: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: DS.Space.base) {
-            Toggle("", isOn: Binding(
-                get: { entry.isEnabled },
-                set: { newValue in
-                    var updated = entry
-                    updated.isEnabled = newValue
-                    DictionaryStore.shared.update(updated)
-                }
-            ))
-            .labelsHidden()
-            .toggleStyle(.switch)
-            .tint(DS.Color.ink)
-            .accessibilityLabel(entry.isEnabled ? "Disable entry" : "Enable entry")
+            Text(entry.kind == .term ? "TERM" : "FIX")
+                .font(DS.Font.eyebrow)
+                .tracking(DS.Metric.eyebrowTracking)
+                .foregroundStyle(DS.Color.inkSecondary)
+                .frame(width: DS.Metric.dictionaryKindTagWidth, alignment: .leading)
 
             content
 
             Spacer(minLength: DS.Space.none)
 
-            if !isEditing {
+            if isEditing {
+                EmptyView()
+            } else if isHovering {
+                Toggle("", isOn: Binding(
+                    get: { entry.isEnabled },
+                    set: { newValue in
+                        var updated = entry
+                        updated.isEnabled = newValue
+                        DictionaryStore.shared.update(updated)
+                    }
+                ))
+                .labelsHidden()
+                .toggleStyle(.switch)
+                .tint(DS.Color.ink)
+                .accessibilityLabel(entry.isEnabled ? "Disable entry" : "Enable entry")
+
                 Button {
                     draftWrite = entry.write
                     draftHear = entry.hear
@@ -217,20 +231,24 @@ private struct DictionaryRow: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Edit entry")
-            }
 
-            Button {
-                DictionaryStore.shared.delete(id: entry.id)
-            } label: {
-                Image(systemName: "trash")
-                    .foregroundStyle(DS.Color.inkSecondary)
+                Button {
+                    DictionaryStore.shared.delete(id: entry.id)
+                } label: {
+                    Image(systemName: "trash")
+                        .foregroundStyle(DS.Color.inkSecondary)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Delete entry")
             }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Delete entry")
         }
-        .padding(DS.Space.base)
-        .background(RoundedRectangle(cornerRadius: DS.Radius.control).fill(DS.Color.panelRaised))
+        .padding(.horizontal, DS.Space.roomy)
+        .padding(.vertical, DS.Space.base)
+        .background(isHovering ? DS.Color.panel : DS.Color.clear)
         .opacity(entry.isEnabled ? 1 : DS.Metric.disabledEntryOpacity)
+        .onHover { hovering in
+            isHovering = hovering
+        }
     }
 
     @ViewBuilder
