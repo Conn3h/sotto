@@ -1,0 +1,24 @@
+Sources/SottoDictionary/DictionaryCorrector.swift
+  s_f4e8c10984db53::t_b63d03a6946aa6 91-96
+docs/SPEC.md
+  s_f4e8c10984db53::t_34c80cb41ccf3b 719
+  s_f4e8c10984db53::t_075e52e352fbd8 767-771
+Tests/SottoDictionaryTests/DictionaryCorrectorBiasTests.swift
+  s_f4e8c10984db53::t_4b3e2ae88414b0 6-7
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "9abf252075eb97dc38d8eed2bb8f15378b66b9e9",
+  "prompts": {},
+  "sessions": {
+    "s_f4e8c10984db53": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e8dccb0c-666c-4bbd-9636-7ff30a0fa1da",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Conrad <conne_95@msn.com>"
+    }
+  }
+}
