@@ -1,0 +1,23 @@
+docs/SPEC.md
+  s_f4e8c10984db53::t_53fbd42cf97e42 913-925
+CLAUDE.md
+  s_f4e8c10984db53::t_42b145ed25fb48 13-23,47-48
+Makefile
+  s_f4e8c10984db53::t_27f7301e03b1e2 9-28,33-34,38,48-63,65,80,84-87,89-94,105,107
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "ad15fa30a7d889edfe1bb17b115739222ef05f89",
+  "prompts": {},
+  "sessions": {
+    "s_f4e8c10984db53": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e8dccb0c-666c-4bbd-9636-7ff30a0fa1da",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Conrad <conne_95@msn.com>"
+    }
+  }
+}
