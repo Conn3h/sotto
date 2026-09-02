@@ -198,73 +198,70 @@ struct MastheadMeterView: View {
     let level: Float
     let isActive: Bool
     let reduceMotion: Bool
+    let windowVisible: Bool
 
     @State private var clock = MastheadRippleClock()
 
     var body: some View {
-        GeometryReader { proxy in
-            let barCount = DS.Metric.mastheadBarCount
-            let spacing = spacing(for: proxy.size.width, barCount: barCount)
-
-            if isActive {
-                bars(spacing: spacing, barCount: barCount) { index in
-                    (height: height(forLitIndex: index), color: recordingColor(for: index))
-                }
-                .animation(reduceMotion ? nil : .easeOut(duration: DS.Motion.quick), value: litCount)
-            } else if reduceMotion {
-                bars(spacing: spacing, barCount: barCount) { _ in
-                    (height: DS.Metric.mastheadBarFloor, color: DS.Color.inkTertiary)
-                }
-            } else {
-                TimelineView(.animation) { context in
-                    let elapsed = clock.advance(to: context.date)
-                    bars(spacing: spacing, barCount: barCount) { index in
-                        (height: rippleHeight(index: index, elapsed: elapsed), color: DS.Color.inkTertiary)
-                    }
-                }
+        let animate = MeterAnimation.shouldAnimate(
+            isActive: isActive, reduceMotion: reduceMotion, windowVisible: windowVisible
+        )
+        // A Canvas repaints on each tick WITHOUT a layout pass; the previous HStack of
+        // capsules forced a full NSHostingView.layout() every frame (spec trap: keep
+        // per-frame work off the layout engine). Paused (hidden, or idle + reduce motion)
+        // the TimelineView renders once with the clock's held values: a single static draw.
+        TimelineView(.animation(paused: !animate)) { context in
+            let target = CGFloat(max(0, min(1, level)))
+            let tick = animate
+                ? clock.advance(to: context.date, toward: target)
+                : (elapsed: clock.elapsed, level: clock.level)
+            Canvas { gc, size in
+                draw(into: gc, size: size, elapsed: tick.elapsed, level: tick.level)
             }
         }
-        .frame(height: DS.Metric.mastheadBarMaxHeight, alignment: .bottom)
+        .frame(height: DS.Metric.mastheadBarMaxHeight)
     }
 
-    private func bars(
-        spacing: CGFloat,
-        barCount: Int,
-        bar: @escaping (Int) -> (height: CGFloat, color: SwiftUI.Color)
-    ) -> some View {
-        HStack(spacing: spacing) {
-            ForEach(0..<barCount, id: \.self) { index in
-                let value = bar(index)
-                Capsule()
-                    .fill(value.color)
-                    .frame(width: DS.Metric.mastheadBarWidth, height: value.height)
-            }
+    private func draw(into gc: GraphicsContext, size: CGSize, elapsed: TimeInterval, level: CGFloat) {
+        let barCount = DS.Metric.mastheadBarCount
+        let spacing = spacing(for: size.width, barCount: barCount)
+        let barWidth = DS.Metric.mastheadBarWidth
+        let lit = litCount(for: level)
+        for index in 0..<barCount {
+            let x = CGFloat(index) * (barWidth + spacing)
+            let height = barHeight(index: index, elapsed: elapsed, lit: lit)
+            let rect = CGRect(x: x, y: size.height - height, width: barWidth, height: height)
+            gc.fill(Path(roundedRect: rect, cornerRadius: barWidth / 2), with: .color(barColor(index: index, lit: lit)))
         }
-        .frame(height: DS.Metric.mastheadBarMaxHeight, alignment: .bottom)
+    }
+
+    private func barHeight(index: Int, elapsed: TimeInterval, lit: Int) -> CGFloat {
+        if isActive {
+            return index < lit ? DS.Metric.mastheadBarMaxHeight : DS.Metric.mastheadBarFloor
+        }
+        if reduceMotion {
+            return DS.Metric.mastheadBarFloor
+        }
+        return rippleHeight(index: index, elapsed: elapsed)
+    }
+
+    private func barColor(index: Int, lit: Int) -> SwiftUI.Color {
+        guard isActive else { return DS.Color.inkTertiary }
+        guard index < lit else { return DS.Color.hairline }
+        let lastIndex = DS.Metric.mastheadBarCount - 1
+        let position = lastIndex > 0 ? Double(index) / Double(lastIndex) : 0
+        return DS.Color.meterLow.mix(with: DS.Color.meterHigh, by: position)
+    }
+
+    private func litCount(for level: CGFloat) -> Int {
+        let clamped = max(0, min(1, level))
+        return Int((clamped * CGFloat(DS.Metric.mastheadBarCount)).rounded())
     }
 
     private func spacing(for width: CGFloat, barCount: Int) -> CGFloat {
         let totalBarWidth = CGFloat(barCount) * DS.Metric.mastheadBarWidth
         let gapCount = max(barCount - 1, 1)
         return max(DS.Space.hair, (width - totalBarWidth) / CGFloat(gapCount))
-    }
-
-    private var litCount: Int {
-        let clamped = max(0, min(1, level))
-        return Int((CGFloat(clamped) * CGFloat(DS.Metric.mastheadBarCount)).rounded())
-    }
-
-    private func height(forLitIndex index: Int) -> CGFloat {
-        index < litCount ? DS.Metric.mastheadBarMaxHeight : DS.Metric.mastheadBarFloor
-    }
-
-    private func recordingColor(for index: Int) -> SwiftUI.Color {
-        guard index < litCount else {
-            return DS.Color.hairline
-        }
-        let lastIndex = DS.Metric.mastheadBarCount - 1
-        let position = lastIndex > 0 ? Double(index) / Double(lastIndex) : 0
-        return DS.Color.meterLow.mix(with: DS.Color.meterHigh, by: position)
     }
 
     /// Mirrors `HUDMeterView.wave(index:elapsed:)`: each bar's ripple is offset from every
@@ -281,21 +278,26 @@ struct MastheadMeterView: View {
 }
 
 /// A plain reference type held via `@State` for stable identity across re-renders (never
-/// reassigned). `advance(to:)` mutates a plain stored property, not a `@State` value, so
-/// calling it from the `TimelineView` draw closure above is safe — see `HUDMeterClock`'s doc
-/// comment in `HUDView.swift` for why an actual `@State` mutation there would flood the log.
+/// reassigned). `advance(to:toward:)` mutates plain stored properties, not a `@State` value,
+/// so calling it from the `TimelineView` draw closure above is safe — see `HUDMeterClock`'s
+/// doc comment in `HUDView.swift` for why an actual `@State` mutation there would flood the
+/// log.
 @MainActor
 private final class MastheadRippleClock {
     private var last: Date?
     private(set) var elapsed: TimeInterval = 0
+    private(set) var level: CGFloat = 0
 
+    /// Advances ripple time and eases the displayed level toward `target`. `dt / quick`
+    /// gives roughly the same settling time the old `.animation(.easeOut(quick))` did.
     @discardableResult
-    func advance(to date: Date) -> TimeInterval {
-        if let last {
-            elapsed += date.timeIntervalSince(last)
-        }
+    func advance(to date: Date, toward target: CGFloat) -> (elapsed: TimeInterval, level: CGFloat) {
+        let dt = last.map { date.timeIntervalSince($0) } ?? 0
         last = date
-        return elapsed
+        elapsed += dt
+        let k = DS.Motion.quick > 0 ? min(1, dt / DS.Motion.quick) : 1
+        level += (target - level) * CGFloat(k)
+        return (elapsed, level)
     }
 }
 

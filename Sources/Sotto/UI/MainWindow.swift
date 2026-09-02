@@ -18,7 +18,7 @@ struct MainWindow: View {
 
     var body: some View {
         VStack(spacing: DS.Space.none) {
-            Masthead(controller: controller)
+            Masthead(controller: controller, windowVisible: windowVisible)
                 .padding(.horizontal, DS.Space.panel)
                 .padding(.bottom, DS.Space.panel)
                 // The hidden title bar already contributes its own inset above.
@@ -72,6 +72,7 @@ struct MainWindow: View {
 @MainActor
 private struct Masthead: View {
     let controller: DictationController
+    let windowVisible: Bool
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -104,7 +105,8 @@ private struct Masthead: View {
                 MastheadMeterView(
                     level: controller.level,
                     isActive: controller.state.isActive,
-                    reduceMotion: reduceMotion
+                    reduceMotion: reduceMotion,
+                    windowVisible: windowVisible
                 )
                 .frame(maxWidth: .infinity)
 
@@ -125,7 +127,11 @@ private struct Masthead: View {
 
     private var statusReadout: some View {
         VStack(alignment: .trailing, spacing: DS.Space.tight) {
-            ElapsedReadout(holdStartedAt: controller.holdStartedAt, isActive: controller.state.isActive)
+            ElapsedReadout(
+                holdStartedAt: controller.holdStartedAt,
+                isActive: controller.state.isActive,
+                windowVisible: windowVisible
+            )
 
             HStack(spacing: DS.Space.tight) {
                 if controller.state.isActive {
@@ -239,16 +245,26 @@ private struct RecordKeyStyle: ButtonStyle {
 private struct ElapsedReadout: View {
     let holdStartedAt: Date?
     let isActive: Bool
+    let windowVisible: Bool
 
     private static let idleText = "00:00.0"
     private static let locale = Locale(identifier: "en_US_POSIX")
 
     var body: some View {
-        TimelineView(.periodic(from: .now, by: DS.Motion.elapsedTick)) { context in
-            Text(text(now: context.date))
-                .font(DS.Font.readoutLarge)
-                .foregroundStyle(DS.Color.ink)
+        // No per-frame text rebuilds at rest, or behind another window while recording.
+        if isActive && windowVisible {
+            TimelineView(.periodic(from: .now, by: DS.Motion.elapsedTick)) { context in
+                readout(text(now: context.date))
+            }
+        } else {
+            readout(isActive ? text(now: Date()) : Self.idleText)
         }
+    }
+
+    private func readout(_ string: String) -> some View {
+        Text(string)
+            .font(DS.Font.readoutLarge)
+            .foregroundStyle(DS.Color.ink)
     }
 
     private func text(now: Date) -> String {
