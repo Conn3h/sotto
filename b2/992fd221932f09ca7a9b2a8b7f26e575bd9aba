@@ -1,0 +1,19 @@
+Resources/Info.plist
+  s_eebd3ef0b290cc::t_22dc9fe0a8db37 9-10,13-14,20
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "b2992fd221932f09ca7a9b2a8b7f26e575bd9aba",
+  "prompts": {},
+  "sessions": {
+    "s_eebd3ef0b290cc": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "92b309ea-9204-4668-a7f0-b7b05be4b19a",
+        "model": "unknown"
+      },
+      "human_author": "Conrad <conne_95@msn.com>"
+    }
+  }
+}
