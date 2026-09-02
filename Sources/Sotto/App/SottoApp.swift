@@ -123,9 +123,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    /// The dictionary file may have been hand-edited while another app was frontmost.
+    /// The dictionary file may have been hand-edited while another app was frontmost, and a
+    /// permission grant made in System Settings only shows up on a later check.
     func applicationDidBecomeActive(_ notification: Notification) {
         DictionaryStore.shared.reloadFromDisk()
+        PermissionStatus.shared.refresh()
     }
 
     /// Batch B2. Presents or dismisses the HUD as `controller.state.showsHUD` changes.

@@ -9,39 +9,47 @@ struct MenuBarContent: View {
     let controller: DictationController
 
     @Environment(\.openWindow) private var openWindow
+    @State private var status = PermissionStatus.shared
 
     var body: some View {
-        Text("Hold \(Settings.shared.pushToTalkKey.displayName) to dictate")
-            .disabled(true)
+        Group {
+            Text("Hold \(Settings.shared.pushToTalkKey.displayName) to dictate")
+                .disabled(true)
 
-        Divider()
+            Divider()
 
-        Button("Open Sotto") {
-            NSApp.activate(ignoringOtherApps: true)
-            openWindow(id: "main")
-        }
-
-        SettingsLink {
-            Text("Settings…")
-        }
-
-        if !Permissions.hasAccessibility {
-            Button("Grant Accessibility…") {
-                Permissions.openAccessibilitySettings()
+            Button("Open Sotto") {
+                NSApp.activate(ignoringOtherApps: true)
+                openWindow(id: "main")
             }
-        }
 
-        if !Permissions.hasMicrophone {
-            Button("Grant Microphone…") {
-                Permissions.openMicrophoneSettings()
+            SettingsLink {
+                Text("Settings…")
             }
-        }
 
-        Divider()
+            if !status.hasAccessibility {
+                Button("Grant Accessibility…") {
+                    Permissions.openAccessibilitySettings()
+                }
+            }
 
-        Button("Quit Sotto") {
-            NSApp.terminate(nil)
+            if !status.hasMicrophone {
+                Button("Grant Microphone…") {
+                    Permissions.openMicrophoneSettings()
+                }
+            }
+
+            Divider()
+
+            Button("Quit Sotto") {
+                NSApp.terminate(nil)
+            }
+            .keyboardShortcut("q")
         }
-        .keyboardShortcut("q")
+        // Opening a menu-bar menu need not activate the app, so app-activation refresh alone
+        // can leave this stale; refresh once per menu open instead of once per body eval.
+        .onAppear {
+            PermissionStatus.shared.refresh()
+        }
     }
 }

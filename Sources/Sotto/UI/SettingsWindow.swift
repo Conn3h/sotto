@@ -9,8 +9,7 @@ struct SettingsWindow: View {
     let controller: DictationController
 
     @Bindable private var settings = Settings.shared
-    @State private var hasAccessibility = Permissions.hasAccessibility
-    @State private var hasMicrophone = Permissions.hasMicrophone
+    @State private var status = PermissionStatus.shared
 
     var body: some View {
         ScrollView {
@@ -99,12 +98,12 @@ struct SettingsWindow: View {
                 SectionHeader(title: "Permissions")
                 permissionRow(
                     title: "Accessibility",
-                    granted: hasAccessibility,
+                    granted: status.hasAccessibility,
                     open: Permissions.openAccessibilitySettings
                 )
                 permissionRow(
                     title: "Microphone",
-                    granted: hasMicrophone,
+                    granted: status.hasMicrophone,
                     open: Permissions.openMicrophoneSettings
                 )
             }
@@ -137,8 +136,7 @@ struct SettingsWindow: View {
     }
 
     private func refreshPermissions() {
-        hasAccessibility = Permissions.hasAccessibility
-        hasMicrophone = Permissions.hasMicrophone
+        PermissionStatus.shared.refresh()
     }
 
     private func pollPermissions() async {
