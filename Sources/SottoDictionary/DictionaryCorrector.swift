@@ -48,9 +48,10 @@ public struct DictionaryCorrector: Sendable {
         let reason: String
     }
 
-    /// A compiled rule for one `apply` call. Not `Sendable` (`NSRegularExpression`), so it
-    /// is never stored on the corrector.
-    struct CompiledRule {
+    /// A compiled rule, built once at init and reused by every `apply` call. Immutable
+    /// `NSRegularExpression` is `Sendable` on macOS 26, so this keeps `DictionaryCorrector`
+    /// a `Sendable` value type.
+    struct CompiledRule: Sendable {
         let regex: NSRegularExpression
         let write: String
     }
@@ -60,6 +61,7 @@ public struct DictionaryCorrector: Sendable {
     #endif
 
     private let candidates: [Candidate]
+    private let rules: [CompiledRule]
 
     public init(entries: [DictionaryEntry]) {
         candidates = entries.compactMap { entry in
@@ -67,11 +69,21 @@ public struct DictionaryCorrector: Sendable {
             guard let pattern = Self.triggerPattern(for: entry.hear) else { return nil }
             return Candidate(pattern: pattern, write: entry.write)
         }
+        let compiled = Self.compile(candidates)
+        for failure in compiled.failures {
+            Self.logCompileFailure(failure)
+        }
+        rules = compiled.rules
     }
 
     /// Test seam: skips trigger-pattern generation so a compile failure can be exercised.
     init(candidates: [Candidate]) {
         self.candidates = candidates
+        let compiled = Self.compile(candidates)
+        for failure in compiled.failures {
+            Self.logCompileFailure(failure)
+        }
+        rules = compiled.rules
     }
 
     public var isEmpty: Bool { candidates.isEmpty }
@@ -106,14 +118,6 @@ public struct DictionaryCorrector: Sendable {
         let normalized = text.precomposedStringWithCanonicalMapping
         guard !candidates.isEmpty, !normalized.isEmpty else { return (normalized, []) }
 
-        // Compiled once per call, not stored: `NSRegularExpression` keeps this struct a
-        // plain, trivially `Sendable` value type, and recompiling a handful of short
-        // patterns per utterance is not measurable next to speech recognition itself.
-        let compiled = Self.compile(candidates)
-        for failure in compiled.failures {
-            Self.logCompileFailure(failure)
-        }
-        let rules = compiled.rules
         guard !rules.isEmpty else { return (normalized, []) }
 
         var output = ""

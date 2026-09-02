@@ -37,4 +37,17 @@ struct DictionaryCorrectorCompileTests {
         #expect(corrector.apply(to: "a.b*c?").text == "regex bait")
         #expect(corrector.apply(to: "[brackets] {braces} $^|\\").text == "escaped")
     }
+
+    /// Regression net for moving compilation from `apply` to `init`: a corrector built once
+    /// applies the same corrections across repeated `apply` calls.
+    @Test func repeatedApplyIsStableAfterCompileAtInit() {
+        let corrector = DictionaryCorrector(entries: [
+            .correction(hear: "cloud code", write: "Claude Code"),
+        ])
+        let first = corrector.apply(to: "open cloud code now")
+        let second = corrector.apply(to: "open cloud code now")
+        #expect(first.text == "open Claude Code now")
+        #expect(second.text == first.text)
+        #expect(first.applied == second.applied)
+    }
 }

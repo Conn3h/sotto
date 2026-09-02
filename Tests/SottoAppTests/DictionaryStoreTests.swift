@@ -380,6 +380,21 @@ struct DictionaryStoreTests {
             #expect(store.biasPhrases == ["Sotto", "Claude Code"])
         }
     }
+
+    @Test func correctorIsRebuiltOnlyWhenEntriesChange() throws {
+        try withSandbox { sandbox in
+            let store = DictionaryStore(fileURL: sandbox.fileURL)
+            store.add(.correction(hear: "cloud code", write: "Claude Code"))
+            let baseline = store.correctorBuildCount
+            _ = store.corrector
+            _ = store.corrector
+            #expect(store.correctorBuildCount == baseline + 1)
+
+            store.add(.correction(hear: "vs code", write: "VS Code"))
+            _ = store.corrector
+            #expect(store.correctorBuildCount == baseline + 2)
+        }
+    }
 }
 
 private extension DictionaryEntry {

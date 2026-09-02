@@ -238,9 +238,19 @@ final class DictionaryStore {
         }
     }
 
-    /// Rebuilt on demand; cheap.
+    /// Rebuilds only when `entries` change. Building parses and compiles each trigger, so
+    /// doing it once per dictionary edit, not once per hold, keeps the press path clean.
+    @ObservationIgnored private var cachedCorrector: (revision: Int, value: DictionaryCorrector)?
+    @ObservationIgnored private(set) var correctorBuildCount = 0
+
     var corrector: DictionaryCorrector {
-        DictionaryCorrector(entries: entries)
+        if let cached = cachedCorrector, cached.revision == revision {
+            return cached.value
+        }
+        let built = DictionaryCorrector(entries: entries)
+        cachedCorrector = (revision, built)
+        correctorBuildCount += 1
+        return built
     }
 
     var biasPhrases: [String] {
