@@ -2,7 +2,7 @@
 
 Run: `codex exec --sandbox read-only --ignore-user-config -m gpt-5.6-sol -c model_reasoning_effort=xhigh` against main at b5c1c7e (all batches merged, 141 tests green, installed and exercised by hand: three hotkey dictations into a terminal landed correctly). Codex could not run `make test` inside its read-only sandbox; the orchestrator's own run was green.
 
-## Fix batch 1 (triaged, all accepted unless noted)
+## Fix batch 1 (triaged, all accepted unless noted) — LANDED 2026-09-02 in 05a5122, ef76ed6, 5b39285; 167 tests green; installed
 
 Two agents in worktrees, disjoint files. Shared new API, defined here so both can build against it: `DictionaryFile.representabilityIssues(for entry: DictionaryEntry) -> [DictionaryRepresentabilityIssue]` in SottoDictionary, a pure function returning `.blankWrite`, `.blankHear` (corrections only), `.commentPrefix` (write or hear starts with `#`), `.containsArrow` (either side contains `->`), each with a user-readable `message`. `DictionaryStore.add`/`update` refuse and log when the list is non-empty; the panel shows the messages and disables Save.
 

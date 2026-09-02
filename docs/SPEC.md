@@ -984,7 +984,9 @@ Things that look wrong and are not, or look fine and will bite:
 
 ## 11. Later
 
-Parakeet via CoreML as a second engine (the seam exists), command mode on selected text,
+A leading space on the paste path (the accessibility path adds one when the character
+before the caret is not whitespace; the paste path cannot read the target). Parakeet via
+CoreML as a second engine (the seam exists), command mode on selected text,
 first-run onboarding, notarization and a DMG, an app icon, live dictionary file watching
 done properly (content fingerprints, debounce), a common-word warning list for the
 dictionary, per-app injection preferences.

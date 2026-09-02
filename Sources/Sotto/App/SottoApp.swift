@@ -58,8 +58,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        if !NSApp.setActivationPolicy(.regular) {
-            Log.app.error("activation policy .regular was refused; the Dock icon and main window may be missing")
+        // The call reports false when nothing changed, which is the normal case here
+        // (Info.plist already makes this a regular app), so only the end state matters.
+        if NSApp.activationPolicy() != .regular {
+            _ = NSApp.setActivationPolicy(.regular)
+        }
+        if NSApp.activationPolicy() != .regular {
+            Log.app.error("activation policy is not .regular; the Dock icon and main window may be missing")
         }
         let hud = HUDPanel(controller: composition.controller)
         self.hud = hud
