@@ -22,12 +22,11 @@ actor AppleSpeechEngine: TranscriptionEngine {
     private static let assetDownloadThreshold: Duration = .milliseconds(250)
 
     /// Resolving a locale and confirming assets both cross into the Speech daemon. Neither
-    /// answer changes for the life of the process, so both are memoised. `assetPrep` holds
-    /// the single in-flight preparation per resolved locale so a launch `prepare()` and a
-    /// quick first press coalesce onto one download instead of racing two.
+    /// answer changes for the life of the process, so both are memoised: `resolvedLocales`
+    /// caches the resolution, and `confirmedAssets` records which locales are installed so a
+    /// later press skips the inventory check entirely.
     private static let resolvedLocales = Mutex<[String: Locale]>([:])
     private static let confirmedAssets = Mutex<Set<String>>([])
-    private static let assetPrep = Mutex<[String: Task<Void, Error>]>([:])
 
     /// The analyzer's preferred capture format is fixed per resolved locale. Computing it
     /// calls into the Speech framework; cache it so a press does not pay that between
@@ -383,32 +382,16 @@ actor AppleSpeechEngine: TranscriptionEngine {
         if confirmedAssets.withLock({ $0.contains(key) }) {
             return
         }
-        // Coalesce a launch prepare() and a first press onto one preparation task. Only the
-        // caller that CREATED the task clears the map entry; reusing waiters never touch it.
-        // `Task` is a value type, so the map cannot be identity-compared to tell a stale
-        // waiter from the current task; letting every waiter clear the key would let a late
-        // clear wipe a newer retry task a fresh caller had already stored, and the next
-        // caller would then start a second concurrent install for the same locale.
-        var created = false
-        let task: Task<Void, Error> = assetPrep.withLock { inFlight in
-            if let existing = inFlight[key] {
-                return existing
-            }
-            let made = Task { try await performAssetInstall(for: transcriber, locale: locale) }
-            inFlight[key] = made
-            created = true
-            return made
-        }
-        do {
-            try await task.value
-            confirmedAssets.withLock { _ = $0.insert(key) }
-            if created { assetPrep.withLock { $0[key] = nil } }
-        } catch {
-            // Evict on failure so a later press can retry rather than reusing a dead task,
-            // but only the creator evicts, so a newer retry task is never wiped.
-            if created { assetPrep.withLock { $0[key] = nil } }
-            throw error
-        }
+        // Run the install in the CALLER's own task, not a detached shared task. Awaiting a
+        // detached Task's `.value` is not cancellation-aware, so a release during a cold
+        // first-launch download would leave the setup task suspended and strand the
+        // controller in `.finishing`, rejecting presses for the whole download (SPEC 6.7's
+        // setup-cancellation contract). Running it here lets `downloadAndInstall` throw
+        // CancellationError promptly when the setup task is cancelled. The rare concurrent
+        // cold-launch case (a launch `prepare()` racing the first press) is deduplicated by
+        // AssetInventory at the OS level, and `confirmedAssets` skips every later press.
+        try await performAssetInstall(for: transcriber, locale: locale)
+        confirmedAssets.withLock { _ = $0.insert(key) }
     }
 
     private static func performAssetInstall(for transcriber: SpeechTranscriber, locale: Locale) async throws {

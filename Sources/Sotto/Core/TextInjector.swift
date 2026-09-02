@@ -211,6 +211,7 @@ enum TextInjector {
         }
         guard let first = string.first else {
             // A successful but empty read is not proof of a field start; fall back.
+            Log.inject.debug("string-for-range returned empty for a nonzero range; falling back")
             return nil
         }
         return .some(first)
