@@ -1,0 +1,21 @@
+Sources/SottoDictionary/DictionaryRepresentability.swift
+  s_eebd3ef0b290cc::t_779ddb9af45296 1-45
+Tests/SottoDictionaryTests/DictionaryRepresentabilityTests.swift
+  s_eebd3ef0b290cc::t_38e63f7c487da9 1-43
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "05a51223c6403958a1c389dd7875ffc67773998d",
+  "prompts": {},
+  "sessions": {
+    "s_eebd3ef0b290cc": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "92b309ea-9204-4668-a7f0-b7b05be4b19a",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Conrad <conne_95@msn.com>"
+    }
+  }
+}
