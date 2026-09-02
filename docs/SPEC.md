@@ -405,7 +405,11 @@ it (below).
   state `.finishing`, stop capture, zero the level, record the release instant. The task:
   1. Cancel the setup task and await it (so a suspended setup cannot resume later).
   2. Stop capture (idempotent), finish the audio continuation, await the drain task.
-  3. `.released` → `await engine.finish()`; `.failed` / `.aborted` → `await engine.cancel()`.
+  3. `.released` → finish the engine, bounded by `engineFinishTimeout`: if `engine.finish()`
+     does not return in time it is abandoned and `engine.cancel()` is called instead, so a
+     stalled finalize (a quick tap that releases just after listening begins can hang the
+     analyzer's `finalizeAndFinishThroughEndOfInput`) can never wedge the utterance in
+     `.finishing`. `.failed` / `.aborted` → `await engine.cancel()`.
   4. Await the consume task (it ends when the stream finishes).
   5. `.released` with a non-blank transcript → `await onFinalTranscript?(raw, utterance)`.
   6. Clear the session and `holdStartedAt`; state `.idle` for `.released`/`.aborted`, or

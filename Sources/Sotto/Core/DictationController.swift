@@ -119,6 +119,12 @@ final class DictationController {
     @ObservationIgnored private let requestMicrophone: @MainActor () async -> Bool
     @ObservationIgnored private let makeEngine: @MainActor () -> any TranscriptionEngine
     @ObservationIgnored private let errorDisplayDuration: Duration
+    /// A cap on `engine.finish()` in the terminal path. The engine's
+    /// `finalizeAndFinishThroughEndOfInput` can stall when finishing an analyzer that saw
+    /// almost no audio (a quick tap released just after listening began), which used to
+    /// wedge the controller in `.finishing` forever, ignoring Stop and new presses. If
+    /// finish does not return within this, the engine is cancelled and the utterance ends.
+    @ObservationIgnored private let engineFinishTimeout: Duration
     @ObservationIgnored private let clock = ContinuousClock()
     @ObservationIgnored private var generation = 0
     @ObservationIgnored private var session: Session?
@@ -129,13 +135,15 @@ final class DictationController {
         capture: any AudioCapturing,
         requestMicrophone: @escaping @MainActor () async -> Bool,
         makeEngine: @escaping @MainActor () -> any TranscriptionEngine,
-        errorDisplayDuration: Duration = .seconds(3)
+        errorDisplayDuration: Duration = .seconds(3),
+        engineFinishTimeout: Duration = .seconds(2)
     ) {
         self.hotkey = hotkey
         self.capture = capture
         self.requestMicrophone = requestMicrophone
         self.makeEngine = makeEngine
         self.errorDisplayDuration = errorDisplayDuration
+        self.engineFinishTimeout = engineFinishTimeout
     }
 
     // MARK: Public controls
@@ -406,10 +414,12 @@ final class DictationController {
         }
         await session.drainTask?.value
 
-        // 3. Finish or cancel the engine; this is the only place either happens.
+        // 3. Finish or cancel the engine; this is the only place either happens. On a
+        // release, finish is bounded so a stalled finalize (a quick tap) cannot wedge the
+        // utterance in `.finishing` forever.
         if let engine = session.engine {
             if reason.isRelease {
-                await engine.finish()
+                await finishBounded(engine, utterance: session.id)
             } else {
                 await engine.cancel()
             }
@@ -474,6 +484,64 @@ final class DictationController {
     }
 
     // MARK: Task bookkeeping
+
+    /// Awaits `engine.finish()` but never lets it hang the utterance. If finish does not
+    /// return within `engineFinishTimeout`, cancel the engine (its abort path ends the
+    /// analyzer and unblocks the stalled finalize) and stop waiting, so the terminal task
+    /// proceeds and the controller leaves `.finishing`. The finish task then completes on
+    /// its own once cancel unblocks it.
+    private func finishBounded(_ engine: any TranscriptionEngine, utterance: Int) async {
+        let latch = RaceLatch()
+        let finish = Task { @MainActor in
+            await engine.finish()
+            latch.resolve(true)
+        }
+        let timer = Task { @MainActor in
+            try? await Task.sleep(for: engineFinishTimeout)
+            latch.resolve(false)
+        }
+        if await latch.value() {
+            timer.cancel()
+        } else {
+            Log.app.error(
+                "utterance \(utterance, privacy: .public) engine finish timed out; cancelling to unblock"
+            )
+            await engine.cancel()
+            finish.cancel()
+        }
+    }
+
+    /// A one-shot latch: the first `resolve` wins and wakes the single waiter; later resolves
+    /// are dropped. Main-actor isolated, so it needs no lock. Used to race `engine.finish()`
+    /// against a timeout without a structured task group (which would wait for the stalled
+    /// finish child).
+    @MainActor
+    private final class RaceLatch {
+        private var result: Bool?
+        private var waiter: CheckedContinuation<Bool, Never>?
+
+        func resolve(_ value: Bool) {
+            guard result == nil else { return }
+            result = value
+            if let waiter {
+                self.waiter = nil
+                waiter.resume(returning: value)
+            }
+        }
+
+        func value() async -> Bool {
+            if let result {
+                return result
+            }
+            return await withCheckedContinuation { continuation in
+                if let result {
+                    continuation.resume(returning: result)
+                } else {
+                    waiter = continuation
+                }
+            }
+        }
+    }
 
     private func track(_ body: @escaping @MainActor () async -> Void) -> Task<Void, Never> {
         liveTaskCount += 1

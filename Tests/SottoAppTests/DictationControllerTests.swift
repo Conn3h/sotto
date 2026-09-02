@@ -458,6 +458,27 @@ struct DictationControllerTests {
         #expect(harness.received.isEmpty)
         #expect(harness.controller.liveTaskCount == 0)
     }
+
+    // MARK: A stalled engine finish must not wedge the utterance
+
+    @Test func stalledEngineFinishTimesOutAndRecovers() async throws {
+        // A quick tap can leave the real engine's finalize stuck; model that with a finish
+        // gate that never opens. The controller must time out, cancel the engine, and idle
+        // rather than sitting in .finishing forever (the reported quick-tap wedge).
+        let finishGate = Gate(open: false)
+        let engine = FakeEngine(.init(finishGate: finishGate))
+        let harness = Harness(engines: [engine], engineFinishTimeout: .milliseconds(150))
+        harness.controller.activate()
+        try await harness.pressAndListen()
+
+        harness.hotkey.release()
+        #expect(harness.state == .finishing)
+
+        try await settle("idle after finish timeout", timeout: .seconds(2)) { harness.state == .idle }
+        #expect(await engine.cancelCalls >= 1)
+        #expect(harness.received.isEmpty)
+        #expect(harness.controller.liveTaskCount == 0)
+    }
 }
 
 @Suite
