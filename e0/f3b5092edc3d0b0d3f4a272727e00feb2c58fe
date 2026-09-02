@@ -1,0 +1,19 @@
+Sources/Sotto/Speech/AppleSpeechEngine.swift
+  s_f4e8c10984db53::t_5104b7c912e4ae 386-392,397-400,405,407-409
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "e0f3b5092edc3d0b0d3f4a272727e00feb2c58fe",
+  "prompts": {},
+  "sessions": {
+    "s_f4e8c10984db53": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e8dccb0c-666c-4bbd-9636-7ff30a0fa1da",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Conrad <conne_95@msn.com>"
+    }
+  }
+}
