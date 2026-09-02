@@ -1,4 +1,7 @@
 import Foundation
+#if canImport(os)
+import os
+#endif
 
 /// One correction that fired while applying a `DictionaryCorrector`, reported once per
 /// entry (not once per occurrence).
@@ -30,11 +33,31 @@ public struct AppliedCorrection: Codable, Hashable, Sendable {
 public struct DictionaryCorrector: Sendable {
     /// A trigger pattern paired with its replacement, in the order its owning entry
     /// appears in `entries`. Only enabled `.correction` entries with a non-empty trigger
-    /// contribute one of these.
-    private struct Candidate: Sendable {
+    /// contribute one of these. Internal so a test can hand in a pattern that will not
+    /// compile, which generated patterns never do.
+    struct Candidate: Sendable {
         let pattern: String
         let write: String
     }
+
+    /// A candidate whose pattern `NSRegularExpression` refused. Generated patterns are
+    /// escaped part by part and should never land here; the type exists so the failure path
+    /// stays reachable and tested.
+    struct CompileFailure: Sendable, Equatable {
+        let pattern: String
+        let reason: String
+    }
+
+    /// A compiled rule for one `apply` call. Not `Sendable` (`NSRegularExpression`), so it
+    /// is never stored on the corrector.
+    struct CompiledRule {
+        let regex: NSRegularExpression
+        let write: String
+    }
+
+    #if canImport(os)
+    private static let logger = Logger(subsystem: "com.conn3h.sotto", category: "dictionary")
+    #endif
 
     private let candidates: [Candidate]
 
@@ -44,6 +67,11 @@ public struct DictionaryCorrector: Sendable {
             guard let pattern = Self.triggerPattern(for: entry.hear) else { return nil }
             return Candidate(pattern: pattern, write: entry.write)
         }
+    }
+
+    /// Test seam: skips trigger-pattern generation so a compile failure can be exercised.
+    init(candidates: [Candidate]) {
+        self.candidates = candidates
     }
 
     public var isEmpty: Bool { candidates.isEmpty }
@@ -81,14 +109,12 @@ public struct DictionaryCorrector: Sendable {
         // Compiled once per call, not stored: `NSRegularExpression` keeps this struct a
         // plain, trivially `Sendable` value type, and recompiling a handful of short
         // patterns per utterance is not measurable next to speech recognition itself.
-        let compiled: [(regex: NSRegularExpression, write: String)] = candidates.compactMap { candidate in
-            guard let regex = try? NSRegularExpression(
-                pattern: candidate.pattern,
-                options: [.caseInsensitive]
-            ) else { return nil }
-            return (regex, candidate.write)
+        let compiled = Self.compile(candidates)
+        for failure in compiled.failures {
+            Self.logCompileFailure(failure)
         }
-        guard !compiled.isEmpty else { return (normalized, []) }
+        let rules = compiled.rules
+        guard !rules.isEmpty else { return (normalized, []) }
 
         var output = ""
         output.reserveCapacity(normalized.count)
@@ -108,8 +134,8 @@ public struct DictionaryCorrector: Sendable {
             var bestRange: Range<String.Index>?
             var bestLength = 0
 
-            for (index, entry) in compiled.enumerated() {
-                guard let match = entry.regex.firstMatch(
+            for (index, rule) in rules.enumerated() {
+                guard let match = rule.regex.firstMatch(
                     in: normalized,
                     options: [.anchored],
                     range: remaining
@@ -128,8 +154,8 @@ public struct DictionaryCorrector: Sendable {
             }
 
             if let bestIndex, let bestRange {
-                let entry = compiled[bestIndex]
-                output += entry.write
+                let rule = rules[bestIndex]
+                output += rule.write
                 if firstFrom[bestIndex] == nil {
                     firstFrom[bestIndex] = String(normalized[bestRange])
                     firstFireOrder.append(bestIndex)
@@ -145,11 +171,38 @@ public struct DictionaryCorrector: Sendable {
         let applied = firstFireOrder.map { index in
             AppliedCorrection(
                 from: firstFrom[index] ?? "",
-                to: compiled[index].write,
+                to: rules[index].write,
                 count: counts[index] ?? 0
             )
         }
         return (output, applied)
+    }
+
+    // MARK: - Compilation
+
+    /// Compiles every candidate, keeping the rules that compiled (in candidate order) and
+    /// reporting the ones that did not, so one bad pattern never disables the rest.
+    static func compile(_ candidates: [Candidate]) -> (rules: [CompiledRule], failures: [CompileFailure]) {
+        var rules: [CompiledRule] = []
+        var failures: [CompileFailure] = []
+        for candidate in candidates {
+            do {
+                let regex = try NSRegularExpression(pattern: candidate.pattern, options: [.caseInsensitive])
+                rules.append(CompiledRule(regex: regex, write: candidate.write))
+            } catch {
+                failures.append(CompileFailure(pattern: candidate.pattern, reason: error.localizedDescription))
+            }
+        }
+        return (rules, failures)
+    }
+
+    /// The pattern comes from the user's dictionary, so only its length is logged.
+    private static func logCompileFailure(_ failure: CompileFailure) {
+        #if canImport(os)
+        logger.error(
+            "correction rule skipped: a trigger pattern of \(failure.pattern.count, privacy: .public) chars failed to compile: \(failure.reason, privacy: .public)"
+        )
+        #endif
     }
 
     // MARK: - Trigger patterns

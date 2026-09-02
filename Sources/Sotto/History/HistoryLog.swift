@@ -61,25 +61,60 @@ enum HistoryLog {
         HistoryStore.shared.reload()
     }
 
-    /// Rewrites the file without the given runs, then reloads `HistoryStore`.
+    /// Rewrites the file without the given runs, then reloads `HistoryStore`. Aborts, with
+    /// nothing rewritten, when the file cannot be read: rewriting what an unreadable file
+    /// looked like (nothing) would erase every run.
     static func delete(ids: Set<UUID>) {
-        let report = loadReport()
+        let report: LoadReport
+        switch loadReport() {
+        case .success(let loaded):
+            report = loaded
+        case .failure(let error):
+            Log.history.error(
+                "delete of \(ids.count, privacy: .public) runs aborted, nothing rewritten: the log could not be read (\(error.localizedDescription, privacy: .public))"
+            )
+            return
+        }
         let remaining = report.runs.filter { !ids.contains($0.id) }
-        rewrite(remaining, reason: "deleted \(report.runs.count - remaining.count) of \(report.runs.count)")
-        HistoryStore.shared.reload()
+        rewriteAndRefresh(remaining, reason: "deleted \(report.runs.count - remaining.count) of \(report.runs.count)")
     }
 
-    /// Rewrites the file empty, then reloads `HistoryStore`.
+    /// Rewrites the file empty, then reloads `HistoryStore`. Needs no read, so it proceeds
+    /// even when the file cannot be read.
     static func clear() {
-        rewrite([], reason: "cleared")
-        HistoryStore.shared.reload()
+        rewriteAndRefresh([], reason: "cleared")
+    }
+
+    /// After a successful rewrite the file's contents are known exactly, so the store takes
+    /// them directly (an atomic rewrite keeps the file's permissions, so an unreadable file
+    /// stays unreadable). After a failed one the file is untouched and is read back.
+    private static func rewriteAndRefresh(_ runs: [DictationRun], reason: String) {
+        if rewrite(runs, reason: reason) {
+            HistoryStore.shared.replace(withFileOrder: runs)
+        } else {
+            HistoryStore.shared.reload()
+        }
     }
 
     // MARK: Reads
 
-    /// The runs in file order. Undecodable lines are skipped and counted in the log.
+    /// The runs in file order. Undecodable lines are skipped and counted in the log; an
+    /// unreadable file (already logged by `loadReport`) reads as empty here, so callers
+    /// that must tell the two apart use `loadReport` directly.
     static func load() -> [DictationRun] {
-        loadReport().runs
+        switch loadReport() {
+        case .success(let report):
+            return report.runs
+        case .failure:
+            return []
+        }
+    }
+
+    /// What one read of the file produced: the runs in file order plus how many lines
+    /// could not be decoded. Blank lines are neither runs nor skips.
+    struct LoadReport: Sendable {
+        let runs: [DictationRun]
+        let skipped: Int
     }
 
     /// A decoded line plus whether it carried an id. A run without one gets a fresh id, and
@@ -99,18 +134,18 @@ enum HistoryLog {
         }
     }
 
-    /// The runs in file order plus how many lines could not be decoded. Blank lines are
-    /// neither runs nor skips.
-    static func loadReport() -> (runs: [DictationRun], skipped: Int) {
+    /// `.failure` only when the file exists but could not be read (logged here); a missing
+    /// file is an empty success, and undecodable lines are counted, not failures.
+    static func loadReport() -> Result<LoadReport, any Error> {
         guard FileManager.default.fileExists(atPath: fileURL.path) else {
-            return ([], 0)
+            return .success(LoadReport(runs: [], skipped: 0))
         }
         let data: Data
         do {
             data = try Data(contentsOf: fileURL)
         } catch {
             Log.history.error("history read failed: \(error.localizedDescription, privacy: .public)")
-            return ([], 0)
+            return .failure(error)
         }
 
         var runs: [DictationRun] = []
@@ -134,9 +169,11 @@ enum HistoryLog {
             )
         }
         if minted > 0 {
-            rewrite(runs, reason: "assigned \(minted) missing ids")
+            // A failed write here is logged; the runs still load, with ids that will not
+            // survive to the next load.
+            _ = rewrite(runs, reason: "assigned \(minted) missing ids")
         }
-        return (runs, skipped)
+        return .success(LoadReport(runs: runs, skipped: skipped))
     }
 
     private static func isBlank(_ line: Data) -> Bool {
@@ -156,7 +193,8 @@ enum HistoryLog {
         try handle.close()
     }
 
-    private static func rewrite(_ runs: [DictationRun], reason: String) {
+    /// True when the file now holds exactly `runs`; false (logged) leaves it untouched.
+    private static func rewrite(_ runs: [DictationRun], reason: String) -> Bool {
         do {
             var data = Data()
             for run in runs {
@@ -166,10 +204,12 @@ enum HistoryLog {
             try AppSupportDirectory.ensureExists(directoryURL)
             try data.write(to: fileURL, options: .atomic)
             Log.history.info("history rewritten (\(reason, privacy: .public)): \(runs.count, privacy: .public) runs kept")
+            return true
         } catch {
             Log.history.error(
                 "history rewrite failed (\(reason, privacy: .public)): \(error.localizedDescription, privacy: .public)"
             )
+            return false
         }
     }
 }

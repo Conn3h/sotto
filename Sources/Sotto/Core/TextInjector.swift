@@ -6,9 +6,20 @@ import Foundation
 /// Puts text into whatever has keyboard focus. Two strategies, in order: an Accessibility
 /// write that is trusted only when the caret verifiably moved, then the pasteboard plus a
 /// synthesized Command-V with the previous pasteboard contents restored afterwards.
+///
+/// The restore runs `pasteCompletionDelay` after the paste, on a task the injector keeps:
+/// the next paste awaits it before taking its own snapshot (so it can never capture our
+/// text as the "original" and restore it for good), and `flushPendingRestore()` performs
+/// it at once when the app quits.
 @MainActor
 enum TextInjector {
     private typealias SavedItem = [NSPasteboard.PasteboardType: Data]
+
+    /// What a paste still owes the pasteboard.
+    private struct PendingRestore {
+        let saved: [SavedItem]
+        let changeCount: Int
+    }
 
     /// Virtual key code of V on an ANSI keyboard (kVK_ANSI_V).
     private static let vKeyCode: CGKeyCode = 9
@@ -18,9 +29,12 @@ enum TextInjector {
     /// contents instead of the text.
     private static let pasteCompletionDelay: Duration = .milliseconds(500)
 
+    private static var pendingRestore: PendingRestore?
+    private static var restoreTask: Task<Void, Never>?
+
     /// Returns once the text has been handed to the focused app. On the paste path the
-    /// pasteboard is restored in the background `pasteCompletionDelay` later, so the
-    /// caller (and the user) does not wait on it.
+    /// pasteboard is restored `pasteCompletionDelay` later, so the caller (and the user)
+    /// does not wait on it; see the type comment for how that restore is kept in line.
     static func insert(_ text: String) async {
         guard !text.isEmpty else {
             Log.inject.info("nothing to insert")
@@ -32,6 +46,15 @@ enum TextInjector {
             )
             await insertViaPasteboard(text)
         }
+    }
+
+    /// Performs a pending pasteboard restore now instead of `pasteCompletionDelay` after
+    /// the paste. Synchronous, for `applicationWillTerminate`: a quit inside that window
+    /// must not leave dictated text on the clipboard.
+    static func flushPendingRestore() {
+        restoreTask?.cancel()
+        restoreTask = nil
+        performPendingRestore(reason: "flushed")
     }
 
     // MARK: Accessibility
@@ -65,7 +88,9 @@ enum TextInjector {
         guard let before = selectedRange(of: focused) else {
             return "selection range unreadable before the write"
         }
-        let writeError = AXUIElementSetAttributeValue(focused, kAXSelectedTextAttribute as CFString, text as CFString)
+        let leadingSpace = needsLeadingSpace(in: focused, before: before)
+        let inserted = leadingSpace ? " " + text : text
+        let writeError = AXUIElementSetAttributeValue(focused, kAXSelectedTextAttribute as CFString, inserted as CFString)
         guard writeError == .success else {
             return "write failed (AXError \(writeError.rawValue))"
         }
@@ -76,7 +101,7 @@ enum TextInjector {
             return "write reported success but the selection did not move"
         }
         Log.inject.info(
-            "inserted \(text.count, privacy: .public) chars via accessibility; selection \(before.location, privacy: .public)+\(before.length, privacy: .public) -> \(after.location, privacy: .public)+\(after.length, privacy: .public)"
+            "inserted \(inserted.count, privacy: .public) chars via accessibility (leading space: \(leadingSpace, privacy: .public)); selection \(before.location, privacy: .public)+\(before.length, privacy: .public) -> \(after.location, privacy: .public)+\(after.length, privacy: .public)"
         )
         return nil
     }
@@ -101,9 +126,44 @@ enum TextInjector {
         return range
     }
 
+    /// Consecutive dictations would otherwise run together ("working?5.one"): when the
+    /// selection starts right after a character that is not whitespace, the text gets one
+    /// leading space. Reads the element's whole value; when that is unreadable the text
+    /// goes in as is, with the reason logged. The paste path cannot read the target at all,
+    /// so it never does this.
+    private static func needsLeadingSpace(in element: AXUIElement, before range: CFRange) -> Bool {
+        guard range.location > 0 else {
+            return false
+        }
+        var value: CFTypeRef?
+        let error = AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &value)
+        guard error == .success, let value else {
+            Log.inject.info("focused value unreadable (AXError \(error.rawValue, privacy: .public)); inserting without a leading space")
+            return false
+        }
+        guard let text = value as? String else {
+            Log.inject.info("focused value is not text (type \(CFGetTypeID(value), privacy: .public)); inserting without a leading space")
+            return false
+        }
+        let units = text as NSString
+        let index = range.location - 1
+        guard index < units.length else {
+            Log.inject.info(
+                "selection starts at \(range.location, privacy: .public) but the value has \(units.length, privacy: .public) units; inserting without a leading space"
+            )
+            return false
+        }
+        guard let scalar = Unicode.Scalar(units.character(at: index)) else {
+            // Half of a surrogate pair: an emoji or similar, which is not whitespace.
+            return true
+        }
+        return !CharacterSet.whitespacesAndNewlines.contains(scalar)
+    }
+
     // MARK: Pasteboard
 
     private static func insertViaPasteboard(_ text: String) async {
+        await awaitPendingRestore()
         let pasteboard = NSPasteboard.general
         let saved = snapshot(of: pasteboard)
         pasteboard.clearContents()
@@ -121,11 +181,38 @@ enum TextInjector {
             return
         }
         Log.inject.info("pasted \(text.count, privacy: .public) chars via Command-V")
+        schedulePendingRestore(PendingRestore(saved: saved, changeCount: ourChangeCount))
+    }
 
-        Task { @MainActor in
-            await wait(pasteCompletionDelay)
-            restoreIfUnchanged(saved, since: ourChangeCount)
+    /// The previous paste's restore must land before this paste snapshots the pasteboard,
+    /// or the snapshot would hold that paste's text and restore it permanently.
+    private static func awaitPendingRestore() async {
+        guard let restoreTask else {
+            return
         }
+        Log.inject.info("waiting for the previous pasteboard restore before pasting")
+        await restoreTask.value
+    }
+
+    private static func schedulePendingRestore(_ pending: PendingRestore) {
+        pendingRestore = pending
+        restoreTask = Task { @MainActor in
+            await wait(pasteCompletionDelay)
+            performPendingRestore(reason: "paste completed")
+        }
+    }
+
+    /// Restores whatever is pending, once: the scheduled task and an early flush both come
+    /// through here, and whichever runs second finds nothing left to do.
+    private static func performPendingRestore(reason: String) {
+        guard let pending = pendingRestore else {
+            Log.inject.debug("no pasteboard restore pending (\(reason, privacy: .public))")
+            return
+        }
+        pendingRestore = nil
+        restoreTask = nil
+        Log.inject.info("restoring the pasteboard (\(reason, privacy: .public))")
+        restoreIfUnchanged(pending.saved, since: pending.changeCount)
     }
 
     private static func snapshot(of pasteboard: NSPasteboard) -> [SavedItem] {

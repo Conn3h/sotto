@@ -122,10 +122,100 @@ struct HistoryLogTests {
             contents += "\n"
             try writeFile(contents, in: directory)
 
-            let report = HistoryLog.loadReport()
+            let report = try HistoryLog.loadReport().get()
             #expect(report.runs.map(\.id) == [good.id])
             #expect(report.skipped == 2)
             #expect(HistoryLog.load().map(\.id) == [good.id])
+        }
+    }
+
+    // MARK: Read failures
+
+    /// Takes every permission bit off the file; reads fail, but an atomic rewrite would
+    /// still replace it, so a delete that did not abort leaves a visible trace.
+    private func setReadable(_ readable: Bool, at url: URL) throws {
+        try FileManager.default.setAttributes(
+            [.posixPermissions: readable ? 0o644 : 0o000],
+            ofItemAtPath: url.path
+        )
+    }
+
+    /// For `defer`: puts the permissions back so the sandbox can be removed, recording
+    /// rather than throwing if that fails.
+    private func restoreReadable(at url: URL) {
+        do {
+            try setReadable(true, at: url)
+        } catch {
+            Issue.record("could not restore permissions on \(url.path): \(error)")
+        }
+    }
+
+    @Test func loadReportDistinguishesAReadFailureFromAnEmptyLog() async throws {
+        try await withTemporaryLog { directory in
+            let fileURL = directory.appending(path: Self.fileName)
+            try writeFile("", in: directory)
+            #expect(try HistoryLog.loadReport().get().runs.isEmpty)
+
+            try setReadable(false, at: fileURL)
+            defer { restoreReadable(at: fileURL) }
+            guard case .failure = HistoryLog.loadReport() else {
+                Issue.record("an unreadable log reported success")
+                return
+            }
+            #expect(HistoryLog.load().isEmpty)
+        }
+    }
+
+    @Test func deleteAbortsWhenTheLogCannotBeRead() async throws {
+        try await withTemporaryLog { directory in
+            let runs = [makeRun(text: "one"), makeRun(text: "two")]
+            for run in runs {
+                HistoryLog.record(run)
+            }
+            let fileURL = directory.appending(path: Self.fileName)
+            let before = try Data(contentsOf: fileURL)
+
+            try setReadable(false, at: fileURL)
+            defer { restoreReadable(at: fileURL) }
+            HistoryLog.delete(ids: [runs[0].id])
+            try setReadable(true, at: fileURL)
+
+            #expect(try Data(contentsOf: fileURL) == before)
+            #expect(HistoryLog.load().map(\.id) == runs.map(\.id))
+            #expect(HistoryStore.shared.runs.map(\.id) == [runs[1].id, runs[0].id])
+        }
+    }
+
+    @Test func clearProceedsWhenTheLogCannotBeRead() async throws {
+        try await withTemporaryLog { directory in
+            HistoryLog.record(makeRun(text: "one"))
+            HistoryLog.record(makeRun(text: "two"))
+            let fileURL = directory.appending(path: Self.fileName)
+
+            try setReadable(false, at: fileURL)
+            defer { restoreReadable(at: fileURL) }
+            HistoryLog.clear()
+            try setReadable(true, at: fileURL)
+
+            #expect(try fileContents(in: directory).isEmpty)
+            #expect(HistoryLog.load().isEmpty)
+            #expect(HistoryStore.shared.runs.isEmpty)
+        }
+    }
+
+    @Test func storeKeepsItsRunsWhenTheLogCannotBeRead() async throws {
+        try await withTemporaryLog { directory in
+            let first = makeRun(text: "first")
+            let second = makeRun(text: "second")
+            HistoryLog.record(first)
+            HistoryLog.record(second)
+            let fileURL = directory.appending(path: Self.fileName)
+
+            try setReadable(false, at: fileURL)
+            defer { restoreReadable(at: fileURL) }
+            HistoryStore.shared.reload()
+
+            #expect(HistoryStore.shared.runs.map(\.id) == [second.id, first.id])
         }
     }
 
@@ -177,7 +267,8 @@ struct HistoryLogTests {
     @Test func loadWithoutAFileIsEmpty() async throws {
         try await withTemporaryLog { _ in
             #expect(HistoryLog.load().isEmpty)
-            #expect(HistoryLog.loadReport().skipped == 0)
+            let report = try HistoryLog.loadReport().get()
+            #expect(report.skipped == 0)
         }
     }
 }

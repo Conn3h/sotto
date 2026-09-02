@@ -33,21 +33,33 @@ final class DictionaryStore {
     private(set) var entries: [DictionaryEntry] = []
     /// Bumps on every change to `entries`.
     private(set) var revision = 0
+    /// True while the file exists but could not be read: at init, or on a reload after it
+    /// changed. Every edit is refused until a later `reloadFromDisk()` succeeds, so a
+    /// transient read failure can never end with the file overwritten by an empty or stale
+    /// in-memory list.
+    private(set) var loadFailed = false
     /// How many times the file has been read. Exposed so tests can see a skipped reload.
     @ObservationIgnored private(set) var diskReadCount = 0
 
     @ObservationIgnored private let location: URL
+    /// Set only after a successful read or save; a failed read clears it so the next
+    /// reload always tries the file again.
     @ObservationIgnored private var lastStamp: FileStamp?
 
     /// `shared` uses `fileURL`; tests pass a file in a temporary directory.
     init(fileURL: URL) {
         location = fileURL
         if FileManager.default.fileExists(atPath: fileURL.path) {
-            lastStamp = stamp()
+            // Stamped before the read, so a write that lands in between is seen next time.
+            let current = stamp()
             if let loaded = read() {
                 entries = loaded
+                lastStamp = current
+                Log.dictionary.info("dictionary loaded: \(self.entries.count, privacy: .public) entries")
+            } else {
+                loadFailed = true
+                Log.dictionary.error("dictionary file exists but could not be read; edits are refused until a reload succeeds")
             }
-            Log.dictionary.info("dictionary loaded: \(self.entries.count, privacy: .public) entries")
         } else {
             // Write the header now so "Reveal Dictionary File" has a file to show and a
             // hand edit has a format to follow.
@@ -58,13 +70,21 @@ final class DictionaryStore {
 
     // MARK: Edits
 
+    /// Refused (logged, nothing saved) while `loadFailed` or when the file format could
+    /// not round-trip the entry.
     func add(_ entry: DictionaryEntry) {
+        guard canEdit("add"), isRepresentable(entry, for: "add") else {
+            return
+        }
         entries = entries + [entry]
         commit("added a \(entry.kind.rawValue)")
     }
 
-    /// Matched by id; an unknown id is a logged no-op.
+    /// Matched by id; an unknown id is a logged no-op. Refused like `add`.
     func update(_ entry: DictionaryEntry) {
+        guard canEdit("update"), isRepresentable(entry, for: "update") else {
+            return
+        }
         guard let index = entries.firstIndex(where: { $0.id == entry.id }) else {
             Log.dictionary.error("update ignored: no entry with id \(entry.id.uuidString, privacy: .public)")
             return
@@ -75,8 +95,11 @@ final class DictionaryStore {
         commit("updated a \(entry.kind.rawValue)")
     }
 
-    /// An unknown id is a logged no-op.
+    /// An unknown id is a logged no-op. Refused while `loadFailed`.
     func delete(id: UUID) {
+        guard canEdit("delete") else {
+            return
+        }
         guard entries.contains(where: { $0.id == id }) else {
             Log.dictionary.error("delete ignored: no entry with id \(id.uuidString, privacy: .public)")
             return
@@ -85,7 +108,11 @@ final class DictionaryStore {
         commit("deleted 1 entry")
     }
 
+    /// Refused while `loadFailed`.
     func delete(ids: Set<UUID>) {
+        guard canEdit("delete") else {
+            return
+        }
         let remaining = entries.filter { !ids.contains($0.id) }
         let removed = entries.count - remaining.count
         guard removed > 0 else {
@@ -104,11 +131,37 @@ final class DictionaryStore {
         save()
     }
 
+    /// False, with an error logged, while the file could not be read: saving now would
+    /// replace contents this store has never seen.
+    private func canEdit(_ what: String) -> Bool {
+        guard !loadFailed else {
+            Log.dictionary.error(
+                "\(what, privacy: .public) refused: the dictionary file could not be read; reload it before editing"
+            )
+            return false
+        }
+        return true
+    }
+
+    /// False, with an error logged, when the file format would drop or reinterpret the
+    /// entry on the next load (blank sides, a leading `#`, an embedded `->`).
+    private func isRepresentable(_ entry: DictionaryEntry, for what: String) -> Bool {
+        let issues = DictionaryFile.representabilityIssues(for: entry)
+        guard issues.isEmpty else {
+            let messages = issues.map(\.message).joined(separator: " ")
+            Log.dictionary.error("\(what, privacy: .public) refused: \(messages, privacy: .public)")
+            return false
+        }
+        return true
+    }
+
     // MARK: Reload
 
     /// Re-reads the file unless its size and modification date match the last load or
     /// save. Ids survive for entries whose (kind, hear, write) triple is already in memory;
     /// new lines get fresh ids. `revision` bumps only when the entry list actually changed.
+    /// A read failure keeps the entries in memory but sets `loadFailed`; a later success
+    /// clears it.
     func reloadFromDisk() {
         guard let current = stamp() else {
             Log.dictionary.error(
@@ -121,9 +174,20 @@ final class DictionaryStore {
             return
         }
         guard let parsed = read() else {
+            lastStamp = nil
+            if !loadFailed {
+                loadFailed = true
+                Log.dictionary.error(
+                    "dictionary changed on disk but could not be read; edits are refused until a reload succeeds, keeping \(self.entries.count, privacy: .public) entries in memory"
+                )
+            }
             return
         }
         lastStamp = current
+        if loadFailed {
+            loadFailed = false
+            Log.dictionary.info("dictionary readable again; edits are allowed")
+        }
         let merged = Self.preservingIds(from: entries, in: parsed)
         guard merged != entries else {
             Log.dictionary.info("dictionary reloaded: no changes")
