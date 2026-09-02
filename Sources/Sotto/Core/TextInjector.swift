@@ -128,12 +128,21 @@ enum TextInjector {
 
     /// Consecutive dictations would otherwise run together ("working?5.one"): when the
     /// selection starts right after a character that is not whitespace, the text gets one
-    /// leading space. Reads the element's whole value; when that is unreadable the text
-    /// goes in as is, with the reason logged. The paste path cannot read the target at all,
-    /// so it never does this.
+    /// leading space. Reads only the character immediately before the caret via the
+    /// range-parameterized attribute, falling back to the whole-value read when that is
+    /// unavailable, fails, or returns empty (each logged). The paste path cannot read the
+    /// target at all, so it never does this.
     private static func needsLeadingSpace(in element: AXUIElement, before range: CFRange) -> Bool {
         guard range.location > 0 else {
             return false
+        }
+        switch character(before: range.location, in: element) {
+        case .some(.some(let precedingChar)):
+            return !precedingChar.unicodeScalars.allSatisfy(CharacterSet.whitespacesAndNewlines.contains)
+        case .some(.none):
+            return false
+        case .none:
+            break  // attribute unsupported, failed, or empty; fall back to the full-value read
         }
         var value: CFTypeRef?
         let error = AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &value)
@@ -158,6 +167,34 @@ enum TextInjector {
             return true
         }
         return !CharacterSet.whitespacesAndNewlines.contains(scalar)
+    }
+
+    /// The single character immediately before `location`, read with the range-parameterized
+    /// attribute so the whole document is never copied.
+    /// - Returns `nil` (outer) when the read cannot be trusted (value-creation failure, AX
+    ///   error, unexpected type, or empty result): the caller falls back to the full-value read.
+    /// - Returns `.some(nil)` only when there is genuinely no preceding character.
+    /// - Returns `.some(char)` with the character otherwise.
+    private static func character(before location: Int, in element: AXUIElement) -> Character?? {
+        guard location > 0 else { return .some(nil) }  // genuine: at the start of the field
+        var range = CFRange(location: location - 1, length: 1)
+        guard let axRange = AXValueCreate(.cfRange, &range) else {
+            Log.inject.debug("could not create an AXValue range for the preceding character; falling back")
+            return nil
+        }
+        var value: CFTypeRef?
+        let error = AXUIElementCopyParameterizedAttributeValue(
+            element, kAXStringForRangeParameterizedAttribute as CFString, axRange, &value
+        )
+        guard error == .success, let string = value as? String else {
+            Log.inject.debug("string-for-range unavailable (AXError \(error.rawValue, privacy: .public)); falling back")
+            return nil
+        }
+        guard let first = string.first else {
+            // A successful but empty read is not proof of a field start; fall back.
+            return nil
+        }
+        return .some(first)
     }
 
     // MARK: Pasteboard
