@@ -169,6 +169,18 @@ struct SegmentedChoice<Option: Hashable>: View {
 
 // MARK: - Masthead meter
 
+/// Whether the masthead meter should run its per-frame `TimelineView`. Pure so the gate is
+/// tested without a host. Off whenever the window's pixels are not on screen (dictating into
+/// another app, minimised, covered): the level still updates, the meter just stops
+/// repainting. At rest the ripple is decoration, so reduce-motion turns it off; while
+/// recording the meter must track level even with reduce motion, so only visibility gates it.
+enum MeterAnimation {
+    static func shouldAnimate(isActive: Bool, reduceMotion: Bool, windowVisible: Bool) -> Bool {
+        guard windowVisible else { return false }
+        return isActive || !reduceMotion
+    }
+}
+
 /// The masthead's level meter, the window's signature element (§6.14 direction: "quiet
 /// instrument"): `DS.Metric.mastheadBarCount` thin bars spanning the full width offered to
 /// them. Two behaviours, chosen by `isActive`:
