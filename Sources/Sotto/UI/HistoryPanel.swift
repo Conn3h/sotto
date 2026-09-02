@@ -23,7 +23,7 @@ struct HistoryPanel: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
+        VStack(spacing: DS.Space.none) {
             SearchField(text: $query, placeholder: "Search history")
                 .padding(.horizontal, DS.Space.roomy)
                 .padding(.vertical, DS.Space.base)
@@ -93,6 +93,7 @@ private struct HistoryRow: View {
 
     @State private var isHovering = false
     @State private var showCopied = false
+    @State private var copyFeedbackTask: Task<Void, Never>?
 
     private static let timeOfDay: DateFormatter = {
         let formatter = DateFormatter()
@@ -156,6 +157,10 @@ private struct HistoryRow: View {
         .onHover { hovering in
             isHovering = hovering
         }
+        .onDisappear {
+            copyFeedbackTask?.cancel()
+            copyFeedbackTask = nil
+        }
     }
 
     private var sourceLabel: String {
@@ -164,16 +169,25 @@ private struct HistoryRow: View {
 
     private func copy() {
         NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(run.text, forType: .string)
+        let didSet = NSPasteboard.general.setString(run.text, forType: .string)
+        if !didSet {
+            Log.history.error("copy failed: pasteboard did not accept the string")
+        }
         showCopied = true
-        Task {
+
+        // Cancel any feedback timer already running for this row, so an earlier click can
+        // never clear the "Copied" state a later click just set.
+        copyFeedbackTask?.cancel()
+        copyFeedbackTask = Task {
             do {
                 try await Task.sleep(for: .seconds(DS.Metric.copiedFeedbackSeconds))
             } catch {
                 Log.app.debug("copy feedback timer cancelled")
+                copyFeedbackTask = nil
                 return
             }
             showCopied = false
+            copyFeedbackTask = nil
         }
     }
 }

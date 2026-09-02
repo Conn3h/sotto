@@ -12,7 +12,7 @@ struct DictionaryPanel: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
+        VStack(spacing: DS.Space.none) {
             SearchField(text: $query, placeholder: "Search dictionary")
                 .padding(.horizontal, DS.Space.roomy)
                 .padding(.top, DS.Space.base)
@@ -45,8 +45,29 @@ struct DictionaryPanel: View {
     }
 }
 
+/// The `DictionaryFile.representabilityIssues` messages for a draft entry. Unlike
+/// `DictionaryWarning` (advisory, never blocks), an issue means the file format cannot
+/// round-trip this entry, so it is shown with a glyph and full-contrast `DS.Color.ink`
+/// rather than the warnings' plain, secondary-ink text — visually distinct, and blocking.
+@MainActor
+private struct RepresentabilityIssueList: View {
+    let issues: [DictionaryRepresentabilityIssue]
+
+    var body: some View {
+        ForEach(issues.indices, id: \.self) { index in
+            HStack(alignment: .top, spacing: DS.Space.tight) {
+                Image(systemName: "exclamationmark.triangle")
+                    .foregroundStyle(DS.Color.ink)
+                Text(issues[index].message)
+                    .foregroundStyle(DS.Color.ink)
+            }
+            .font(DS.Font.caption)
+        }
+    }
+}
+
 /// Composes a new entry: a term/correction kind toggle, the hear/write fields (hear hidden
-/// for terms), inline warnings for the entry as typed, and Add.
+/// for terms), inline representability issues and warnings for the entry as typed, and Add.
 @MainActor
 private struct AddEntryRow: View {
     private static let kinds: [DictionaryEntry.Kind] = [.term, .correction]
@@ -55,8 +76,16 @@ private struct AddEntryRow: View {
     @State private var hear = ""
     @State private var write = ""
 
+    private var draftEntry: DictionaryEntry {
+        DictionaryEntry(kind: kind, write: write, hear: hear)
+    }
+
     private var warnings: [DictionaryWarning] {
-        DictionaryWarning.check(DictionaryEntry(kind: kind, write: write, hear: hear))
+        DictionaryWarning.check(draftEntry)
+    }
+
+    private var issues: [DictionaryRepresentabilityIssue] {
+        DictionaryFile.representabilityIssues(for: draftEntry)
     }
 
     private var trimmedWrite: String {
@@ -68,10 +97,7 @@ private struct AddEntryRow: View {
     }
 
     private var canAdd: Bool {
-        guard !trimmedWrite.isEmpty else {
-            return false
-        }
-        return kind == .term || !trimmedHear.isEmpty
+        issues.isEmpty
     }
 
     var body: some View {
@@ -87,6 +113,8 @@ private struct AddEntryRow: View {
                     field("Hear (what the engine mishears)", text: $hear)
                 }
                 field(kind == .term ? "Term" : "Write (what it should say)", text: $write)
+
+                RepresentabilityIssueList(issues: issues)
 
                 ForEach(warnings) { warning in
                     Text(warning.message)
@@ -121,6 +149,10 @@ private struct AddEntryRow: View {
 
 /// One entry: an enable toggle, the term or "heard → written" text (inline-editable), and
 /// delete.
+///
+/// `draftWrite`/`draftHear` are refreshed from `entry` every time Edit begins (not only at
+/// `init`), so a hand edit to the dictionary file that `reloadFromDisk()` picks up under a
+/// preserved id is never overwritten by a draft left over from before the reload.
 @MainActor
 private struct DictionaryRow: View {
     let entry: DictionaryEntry
@@ -128,6 +160,17 @@ private struct DictionaryRow: View {
     @State private var isEditing = false
     @State private var draftWrite: String
     @State private var draftHear: String
+
+    private var draftEntry: DictionaryEntry {
+        var updated = entry
+        updated.write = draftWrite
+        updated.hear = draftHear
+        return updated
+    }
+
+    private var issues: [DictionaryRepresentabilityIssue] {
+        DictionaryFile.representabilityIssues(for: draftEntry)
+    }
 
     init(entry: DictionaryEntry) {
         self.entry = entry
@@ -152,10 +195,12 @@ private struct DictionaryRow: View {
 
             content
 
-            Spacer(minLength: 0)
+            Spacer(minLength: DS.Space.none)
 
             if !isEditing {
                 Button {
+                    draftWrite = entry.write
+                    draftHear = entry.hear
                     isEditing = true
                 } label: {
                     Image(systemName: "pencil")
@@ -191,6 +236,9 @@ private struct DictionaryRow: View {
                 TextField("Write", text: $draftWrite)
                     .textFieldStyle(.plain)
                     .font(DS.Font.body)
+
+                RepresentabilityIssueList(issues: issues)
+
                 HStack(spacing: DS.Space.snug) {
                     Button("Save") {
                         var updated = entry
@@ -199,7 +247,7 @@ private struct DictionaryRow: View {
                         DictionaryStore.shared.update(updated)
                         isEditing = false
                     }
-                    .disabled(draftWrite.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    .disabled(!issues.isEmpty)
                     Button("Cancel") {
                         draftWrite = entry.write
                         draftHear = entry.hear

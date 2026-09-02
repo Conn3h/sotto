@@ -105,7 +105,7 @@ struct EmptyStateView: View {
     var body: some View {
         VStack(spacing: DS.Space.snug) {
             Image(systemName: systemImage)
-                .font(.system(size: DS.Metric.emptyStateIconSize))
+                .font(DS.Font.icon(size: DS.Metric.emptyStateIconSize))
                 .foregroundStyle(DS.Color.inkTertiary)
             Text(title)
                 .font(DS.Font.body)
@@ -156,11 +156,11 @@ struct SegmentedChoice<Option: Hashable>: View {
                 .padding(.vertical, DS.Space.snug)
                 .background(
                     RoundedRectangle(cornerRadius: DS.Radius.control)
-                        .fill(isSelected ? DS.Color.selection : SwiftUI.Color.clear)
+                        .fill(isSelected ? DS.Color.selection : DS.Color.clear)
                 )
                 .overlay(
                     RoundedRectangle(cornerRadius: DS.Radius.control)
-                        .stroke(isSelected ? DS.Color.hairline : SwiftUI.Color.clear, lineWidth: DS.Border.hairline)
+                        .stroke(isSelected ? DS.Color.hairline : DS.Color.clear, lineWidth: DS.Border.hairline)
                 )
         }
         .buttonStyle(.plain)
