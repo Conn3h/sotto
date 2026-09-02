@@ -1,0 +1,29 @@
+Tests/SottoAppTests/HistoryLogTests.swift
+  s_f4e8c10984db53::t_4ab30705c05849 17-21
+  s_f4e8c10984db53::t_1edbe15c7f2050 279-293
+Sources/Sotto/History/HistoryStore.swift
+  s_f4e8c10984db53::t_e45736215bf964 18-24
+docs/SPEC.md
+  s_f4e8c10984db53::t_7f6c3787a8e88b 803-809
+  s_f4e8c10984db53::t_2c1730ab601b7b 795
+Sources/Sotto/History/HistoryLog.swift
+  s_f4e8c10984db53::t_e1825a46fbb39f 16-18
+  s_f4e8c10984db53::t_70c7d866d504c3 151
+  s_f4e8c10984db53::t_69f0f076a4feb0 50-51,53-55,63,68
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "dbd47aa4eb520bf7970f819a179c912612bed66b",
+  "prompts": {},
+  "sessions": {
+    "s_f4e8c10984db53": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e8dccb0c-666c-4bbd-9636-7ff30a0fa1da",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Conrad <conne_95@msn.com>"
+    }
+  }
+}
