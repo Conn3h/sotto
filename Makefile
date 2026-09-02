@@ -61,6 +61,8 @@ install: app
 
 ## Regenerates the app icon from Tools/makeicon.swift. Not a dependency of `app`: the icon
 ## rarely changes and rendering ten PNGs on every build is wasted time.
+## After changing the icon, bump CFBundleVersion in Resources/Info.plist: the icon service
+## caches per bundle identity and version, and the Dock keeps the old tile otherwise.
 icon:
 	@swift Tools/makeicon.swift
 	@iconutil -c icns Resources/AppIcon.iconset -o Resources/AppIcon.icns
