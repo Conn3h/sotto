@@ -15,8 +15,22 @@ final class HistoryStore {
         reload()
     }
 
+    /// `HistoryLog` calls this right after a rewrite, when it knows the file's contents
+    /// without reading them back.
+    func replace(withFileOrder runsInFileOrder: [DictationRun]) {
+        runs = runsInFileOrder.reversed()
+        Log.history.debug("history store replaced: \(self.runs.count, privacy: .public) runs")
+    }
+
+    /// A read failure leaves `runs` as they were: the file's contents are then unknown,
+    /// not empty, and `HistoryLog` has already logged why.
     func reload() {
-        runs = HistoryLog.load().reversed()
-        Log.history.debug("history store reloaded: \(self.runs.count, privacy: .public) runs")
+        switch HistoryLog.loadReport() {
+        case .success(let report):
+            runs = report.runs.reversed()
+            Log.history.debug("history store reloaded: \(self.runs.count, privacy: .public) runs")
+        case .failure:
+            Log.history.error("history store kept its \(self.runs.count, privacy: .public) runs: the log could not be read")
+        }
     }
 }

@@ -219,8 +219,8 @@ final class FakeCapture: AudioCapturing {
 
 // MARK: - Fake engine
 
-/// A transcription engine whose `start()`, `preferredInputFormat()` and `finish()` park at
-/// gates the test controls, and which records everything the controller does to it.
+/// A transcription engine whose `start()`, `preferredInputFormat()`, `feed()` and `finish()`
+/// park at gates the test controls, and which records everything the controller does to it.
 actor FakeEngine: TranscriptionEngine {
     struct Configuration: Sendable {
         var finalText = "hello world"
@@ -228,6 +228,9 @@ actor FakeEngine: TranscriptionEngine {
         var format: AVAudioFormat? = AVAudioFormat(standardFormatWithSampleRate: 16_000, channels: 1)
         var startGate = Gate()
         var formatGate = Gate()
+        /// Closed, it holds every `feed` call, so buffers pile up behind the drain and the
+        /// test can see how many feeds are in flight at once.
+        var feedGate = Gate()
         var finishGate = Gate()
     }
 
@@ -263,6 +266,7 @@ actor FakeEngine: TranscriptionEngine {
     }
 
     func feed(_ chunk: AudioChunk) async {
+        await configuration.feedGate.pass()
         fedFrameLengths.append(chunk.buffer.frameLength)
     }
 

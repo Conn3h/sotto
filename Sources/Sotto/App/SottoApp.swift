@@ -58,7 +58,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        NSApp.setActivationPolicy(.regular)
+        if !NSApp.setActivationPolicy(.regular) {
+            Log.app.error("activation policy .regular was refused; the Dock icon and main window may be missing")
+        }
         let hud = HUDPanel(controller: composition.controller)
         self.hud = hud
         observeHUDVisibility()
@@ -79,6 +81,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationWillTerminate(_ notification: Notification) {
         accessibilityPollTask?.cancel()
         composition.controller.deactivate()
+        // A paste less than half a second ago still owns the pasteboard; give it back now.
+        TextInjector.flushPendingRestore()
         Log.app.info("Sotto terminating")
     }
 

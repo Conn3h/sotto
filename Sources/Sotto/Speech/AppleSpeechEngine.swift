@@ -16,6 +16,9 @@ actor AppleSpeechEngine: TranscriptionEngine {
     }
 
     private static let fallbackLocale = Locale(identifier: "en-US")
+    /// An asset check that takes longer than this is a real download; anything quicker is
+    /// the inventory confirming the assets are already on disk.
+    private static let assetDownloadThreshold: Duration = .milliseconds(250)
 
     private let requestedLocale: Locale
     private let biasPhrases: [String]
@@ -27,6 +30,10 @@ actor AppleSpeechEngine: TranscriptionEngine {
     private var inputContinuation: AsyncStream<AnalyzerInput>.Continuation?
     private var outputContinuation: AsyncThrowingStream<TranscriptSnapshot, Error>.Continuation?
     private var drainTask: Task<Void, Never>?
+    /// A result-stream failure that arrived while `analyzer.start` was still suspended.
+    /// `start()` throws it once the analyzer resumes, so the controller hears about it
+    /// instead of waiting on a stream that has already ended.
+    private var startFailure: (any Error)?
     /// Final results, joined in arrival order.
     private var committed = ""
     /// The latest volatile result. Shown after `committed`, never stored, so the next
@@ -207,12 +214,18 @@ actor AppleSpeechEngine: TranscriptionEngine {
         self.outputContinuation = outputContinuation
         committed = ""
         volatile = ""
+        startFailure = nil
         drainTask = Task {
             await self.drainResults(from: transcriber)
         }
 
         try await analyzer.start(inputSequence: input)
         analyzerStarted = true
+        if let startFailure {
+            // The drain already finished the output stream with this error while the
+            // analyzer was starting; reporting success here would strand the controller.
+            throw startFailure
+        }
         try checkLive()
         phase = .running
         Log.speech.info("analyzer start: locale \(locale.identifier, privacy: .public)")
@@ -270,9 +283,17 @@ actor AppleSpeechEngine: TranscriptionEngine {
         } catch is CancellationError {
             Log.speech.debug("result drain cancelled")
         } catch {
-            Log.speech.error("result stream failed: \(error.localizedDescription, privacy: .public)")
-            if phase == .running {
+            Log.speech.error(
+                "result stream failed in phase \(String(describing: self.phase), privacy: .public): \(error.localizedDescription, privacy: .public)"
+            )
+            switch phase {
+            case .starting:
+                startFailure = error
                 outputContinuation?.finish(throwing: error)
+            case .running:
+                outputContinuation?.finish(throwing: error)
+            case .idle, .finishing, .finished, .cancelled, .failed:
+                Log.speech.debug("result stream failure not forwarded: the session is already ending")
             }
         }
     }
@@ -344,7 +365,10 @@ actor AppleSpeechEngine: TranscriptionEngine {
             Log.speech.info("speech assets already installed")
             return
         }
-        Log.speech.info("speech asset download starting")
+        // The inventory hands back a request even when everything is installed, and
+        // installing then takes a few milliseconds; only a slow run is a real download.
+        let clock = ContinuousClock()
+        let started = clock.now
         do {
             try await request.downloadAndInstall()
         } catch let cancellation as CancellationError {
@@ -352,6 +376,12 @@ actor AppleSpeechEngine: TranscriptionEngine {
         } catch {
             throw TranscriptionError.modelInstallFailed(error.localizedDescription)
         }
-        Log.speech.info("speech asset download finished")
+        let elapsed = clock.now - started
+        let milliseconds = elapsed.components.seconds * 1_000 + elapsed.components.attoseconds / 1_000_000_000_000_000
+        if elapsed > assetDownloadThreshold {
+            Log.speech.info("speech asset download finished in \(milliseconds, privacy: .public) ms")
+        } else {
+            Log.speech.info("speech assets checked in \(milliseconds, privacy: .public) ms; nothing to download")
+        }
     }
 }

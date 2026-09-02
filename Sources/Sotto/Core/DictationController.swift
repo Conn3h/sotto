@@ -500,6 +500,8 @@ final class DictationController {
             Log.app.error("start sound \(Self.startSoundName, privacy: .public) not found")
             return
         }
-        sound.play()
+        if !sound.play() {
+            Log.app.error("start sound \(Self.startSoundName, privacy: .public) did not play")
+        }
     }
 }

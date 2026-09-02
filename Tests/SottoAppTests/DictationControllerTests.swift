@@ -367,6 +367,31 @@ struct DictationControllerTests {
         #expect(await engine.fedFrameLengths == (1...50).map { AVAudioFrameCount($0) })
     }
 
+    /// Invariant 2 (§4): one unbounded stream, one drain task. With `feed` blocked, exactly
+    /// one feed is in flight (a task per buffer would park a hundred at the gate) and the
+    /// buffers queued behind it are delivered in capture order once it is released.
+    @Test func hundredBuffersQueuedBehindABlockedFeedArriveInOrder() async throws {
+        let feedGate = Gate(open: false)
+        let engine = FakeEngine(.init(feedGate: feedGate))
+        let harness = Harness(engines: [engine])
+        harness.controller.activate()
+        try await harness.pressAndListen()
+
+        #expect(harness.capture.emitBuffer(frameLength: 1))
+        await feedGate.waitForArrival()
+        for index in 2...100 {
+            #expect(harness.capture.emitBuffer(frameLength: AVAudioFrameCount(index)))
+        }
+        try await Task.sleep(for: .milliseconds(20))
+        #expect(await engine.fedFrameLengths.isEmpty)
+        #expect(await feedGate.arrivals == 1)
+
+        await feedGate.open()
+        try await harness.releaseAndIdle()
+        #expect(await engine.fedFrameLengths == (1...100).map { AVAudioFrameCount($0) })
+        #expect(harness.controller.liveTaskCount == 0)
+    }
+
     @Test func blankFinalTranscriptSkipsCallback() async throws {
         let engine = FakeEngine(.init(finalText: "  \n "))
         let harness = Harness(engines: [engine])
