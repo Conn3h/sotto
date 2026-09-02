@@ -22,7 +22,7 @@ ifeq ($(strip $(SIGN_ID)),)
 SIGN_ID := -
 endif
 
-.PHONY: all build test app run install clean
+.PHONY: all build test app run install clean icon
 
 all: app
 
@@ -58,6 +58,13 @@ install: app
 	@cp -R "$(BUNDLE)" "/Applications/$(APPNAME)"
 	@open "/Applications/$(APPNAME)"
 	@echo "installed to /Applications/$(APPNAME)"
+
+## Regenerates the app icon from Tools/makeicon.swift. Not a dependency of `app`: the icon
+## rarely changes and rendering ten PNGs on every build is wasted time.
+icon:
+	@swift Tools/makeicon.swift
+	@iconutil -c icns Resources/AppIcon.iconset -o Resources/AppIcon.icns
+	@echo "wrote Resources/AppIcon.icns"
 
 clean:
 	@rm -rf .build "$(STAGE)"
