@@ -61,6 +61,13 @@ extension DS {
         static let selection = adaptiveColor(
             "DS.selection", light: 0x1C1B18, dark: 0xEDEAE3, lightAlpha: 0.08, darkAlpha: 0.10
         )
+
+        // Not named in §6.14; added by fix batch 1 (agent S1) so views never reach for the
+        // bare SwiftUI literal. Transparent has no appearance-dependent component, so this
+        // is a plain alias rather than an `adaptiveColor` call.
+        /// Fully transparent fill, for the unselected state of a control that otherwise
+        /// paints `selection`.
+        static let clear = SwiftUI.Color.clear
     }
 }
 
@@ -111,6 +118,12 @@ extension DS {
         static let roomy: CGFloat = 16
         static let wide: CGFloat = 24
         static let panel: CGFloat = 32
+
+        // Not named in §6.14; added by fix batch 1 (agent S1) so `spacing: 0` /
+        // `minLength: 0` sites read from the ladder like every other spacing value.
+        /// Zero spacing: a stack that should have no gap between its children, or a
+        /// `Spacer` with no enforced minimum.
+        static let none: CGFloat = 0
     }
 }
 
@@ -139,6 +152,15 @@ extension DS {
         /// Tabular numerals, slightly heavier than `body`: elapsed-time and process-time
         /// counters.
         static let readout = SwiftUI.Font.system(size: 15, weight: .semibold).monospacedDigit()
+
+        // Not named in §6.14; added by fix batch 1 (agent S1). A standalone SF Symbol glyph
+        // (e.g. `EmptyStateView`'s centred icon) is sized on its own rather than inheriting a
+        // text style, so it needs a constructor, not a fixed size like the tokens above.
+        /// A `.system` icon font at `size`, for a glyph-only `Image(systemName:)` that must
+        /// not inherit the surrounding text style.
+        static func icon(size: CGFloat) -> SwiftUI.Font {
+            .system(size: size)
+        }
     }
 }
 
@@ -235,6 +257,12 @@ extension DS {
         /// Opacity of a disabled dictionary entry's row, so a glance at the list shows which
         /// entries are off without needing to read every toggle.
         static let disabledEntryOpacity: Double = 0.5
+
+        // Not named in §6.14; added by fix batch 1 (agent S1) for `HUDLabel`'s
+        // `lineLimit(_:reservesSpace:)`.
+        /// Number of lines the HUD's status label reserves, so the meter above it never
+        /// shifts as the transcript wraps from one line to two.
+        static let hudLineCount: Int = 2
     }
 }
 

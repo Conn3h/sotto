@@ -34,7 +34,7 @@ private struct HUDLabel: View {
             .font(DS.Font.body)
             .foregroundStyle(color)
             .multilineTextAlignment(.center)
-            .lineLimit(2, reservesSpace: true)
+            .lineLimit(DS.Metric.hudLineCount, reservesSpace: true)
             .truncationMode(.head)
             .frame(maxWidth: .infinity)
     }

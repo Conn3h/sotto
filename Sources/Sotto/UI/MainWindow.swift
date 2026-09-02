@@ -15,7 +15,7 @@ struct MainWindow: View {
     @State private var tab: Tab = .history
 
     var body: some View {
-        VStack(spacing: 0) {
+        VStack(spacing: DS.Space.none) {
             TransportStrip(controller: controller)
                 .padding(DS.Space.panel)
 
@@ -23,7 +23,7 @@ struct MainWindow: View {
                 .fill(DS.Color.hairline)
                 .frame(height: DS.Border.hairline)
 
-            VStack(spacing: 0) {
+            VStack(spacing: DS.Space.none) {
                 SegmentedChoice(options: [Tab.history, .dictionary], selection: $tab) { option in
                     switch option {
                     case .history: "History"
