@@ -1,0 +1,49 @@
+Tests/SottoAppTests/Fakes.swift
+  s_f4e8c10984db53::t_d78c3f2120c1b0 342-343
+  s_f4e8c10984db53::t_74497599e5eeb5 362
+  s_f4e8c10984db53::t_5c88e7d5c6da6b 363-364
+  s_f4e8c10984db53::t_f2cdd182713e22 341
+Tests/SottoAppTests/HotkeyMonitorTests.swift
+  s_f4e8c10984db53::t_22569b9f2588c2 1-60
+Tests/SottoAppTests/DictationControllerTests.swift
+  s_f4e8c10984db53::t_49a094b4f7e509 486-509
+  s_f4e8c10984db53::t_8b5f695240d918 510-529
+Sources/Sotto/Core/HotkeyMonitor.swift
+  s_f4e8c10984db53::t_2be181fc1d1f72 135-136
+  s_f4e8c10984db53::t_ea807c8533a2f8 164-177
+  s_f4e8c10984db53::t_965397707bea70 72-79
+  s_f4e8c10984db53::t_d5a673e0d65985 143
+Sources/Sotto/Core/DictationController.swift
+  s_f4e8c10984db53::t_8a09adfabf5f42 89
+  s_f4e8c10984db53::t_a1f5432f32cd50 521
+  s_f4e8c10984db53::t_c1be7ab794c257 150-156
+  s_f4e8c10984db53::t_97a9a500a1c846 169,180
+  s_f4e8c10984db53::t_509e7b4f5d28e8 170-171,181
+  s_f4e8c10984db53::t_00d1ef98b929e0 143-149
+  s_f4e8c10984db53::t_8127f09e66f225 564-590
+  s_f4e8c10984db53::t_edfd3b49fff64d 377-400
+  s_f4e8c10984db53::t_f8ab7e16368763 450
+docs/SPEC.md
+  s_f4e8c10984db53::t_39e29a29dca912 363-365
+  s_f4e8c10984db53::t_debb207d8d53da 442-446
+  s_f4e8c10984db53::t_62d0c57846eb35 222-227
+  s_f4e8c10984db53::t_4db57fb3870915 407-412
+  s_f4e8c10984db53::t_c462de8c64758f 484-487
+  s_f4e8c10984db53::t_e83dfe8f079d33 204-210
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "f86d7d388ad6dd4a262f554d7ad88c18feb6665e",
+  "prompts": {},
+  "sessions": {
+    "s_f4e8c10984db53": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e8dccb0c-666c-4bbd-9636-7ff30a0fa1da",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Conrad <conne_95@msn.com>"
+    }
+  }
+}
