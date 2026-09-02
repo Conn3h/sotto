@@ -1,0 +1,23 @@
+Sources/Sotto/UI/WindowVisibilityReader.swift
+  s_f4e8c10984db53::t_bcac2c1585397c 28-35
+  s_f4e8c10984db53::t_9a9069fc1ff311 1-27,36-73
+Sources/Sotto/UI/MainWindow.swift
+  s_f4e8c10984db53::t_79d93f97ada96e 17
+  s_f4e8c10984db53::t_057aeccc5e46c1 63
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "41f52480407a2c6d51ba9d19e9448203bb20e0db",
+  "prompts": {},
+  "sessions": {
+    "s_f4e8c10984db53": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e8dccb0c-666c-4bbd-9636-7ff30a0fa1da",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Conrad <conne_95@msn.com>"
+    }
+  }
+}
