@@ -1,0 +1,27 @@
+Sources/Sotto/Core/TextInjector.swift
+  s_eebd3ef0b290cc::t_578267ceb595de 176-178,181-184,187,191,204
+Sources/Sotto/UI/DictionaryPanel.swift
+  s_eebd3ef0b290cc::t_5cb5519a314809 100,119-124,141-143,259
+Sources/Sotto/UI/HistoryPanel.swift
+  s_eebd3ef0b290cc::t_7649c4bf5e2aa1 97-98,183-184,189,191-193
+Sources/SottoDictionary/DictionaryRepresentability.swift
+  s_eebd3ef0b290cc::t_aa408fb0cde08e 18-19,37-41,44
+Tests/SottoDictionaryTests/DictionaryRepresentabilityTests.swift
+  s_eebd3ef0b290cc::t_a9f82208a06d8f 23,28,30-37,41-42
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "9e393121c1ba0d42fbb6eb9461d740a739edffb9",
+  "prompts": {},
+  "sessions": {
+    "s_eebd3ef0b290cc": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "92b309ea-9204-4668-a7f0-b7b05be4b19a",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Conrad <conne_95@msn.com>"
+    }
+  }
+}
