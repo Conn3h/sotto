@@ -483,6 +483,50 @@ struct DictationControllerTests {
         #expect(harness.controller.liveTaskCount == 0)
     }
 
+    // MARK: A hung transcript delivery must not wedge .finishing
+
+    @Test func stalledDeliveryTimesOutAndReachesIdle() async throws {
+        // The other await in the terminal path is transcript delivery (format + inject). A
+        // hung pipeline or AX injection must not hold the controller in .finishing, which the
+        // Stop button cannot rescue. Delivery is bounded; on timeout the controller idles.
+        let deliverGate = Gate(open: false)
+        let engine = FakeEngine(.init(finalText: "text"))
+        let harness = Harness(engines: [engine], deliveryTimeout: .milliseconds(120))
+        harness.controller.activate()
+        var deliveryStarted = false
+        harness.controller.onFinalTranscript = { _, _ in
+            deliveryStarted = true
+            await deliverGate.pass()
+        }
+        try await harness.pressAndListen()
+
+        harness.hotkey.release()
+        try await settle("idle after delivery timeout", timeout: .seconds(2)) { harness.state == .idle }
+        #expect(deliveryStarted)
+        #expect(harness.controller.liveTaskCount == 0)
+        await deliverGate.open()
+    }
+
+    // MARK: A lost release must not leave the mic hot forever
+
+    @Test func maxHoldWatchdogEndsAStuckListen() async throws {
+        // If a release event is never delivered (tap disabled across a lost key-up, sleep,
+        // screen lock), nothing else ends the utterance. The watchdog must cap .listening and
+        // end it as a release so the mic does not stay hot and the transcript is still handed
+        // over. No release is issued here at all; only the watchdog can end it.
+        let engine = FakeEngine(.init(finalText: "salvaged"))
+        let harness = Harness(engines: [engine], maxHold: .milliseconds(120))
+        harness.controller.activate()
+        try await harness.pressAndListen()
+
+        try await settle("idle after watchdog", timeout: .seconds(2)) { harness.state == .idle }
+        #expect(harness.received.count == 1)
+        #expect(harness.received.first?.text == "salvaged")
+        #expect(await engine.finishCalls == 1)
+        #expect(harness.controller.holdStartedAt == nil)
+        #expect(harness.controller.liveTaskCount == 0)
+    }
+
     // MARK: A stalled engine finish must not wedge the utterance
 
     @Test func stalledEngineFinishTimesOutAndRecovers() async throws {

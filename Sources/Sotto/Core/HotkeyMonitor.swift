@@ -69,6 +69,14 @@ final class HotkeyMonitor: HotkeySource {
     private var runLoopSource: CFRunLoopSource?
     private var isPressed = false
 
+    /// Reads whether the push-to-talk key is physically down right now. Keyed by virtual
+    /// keycode, not modifier flag: the device-specific Right-Option / Right-Command bits are
+    /// not reliably reported by `CGEventSource` flag state, but per-key state is. Injectable
+    /// so the reconciliation path can be unit-tested without a real event tap.
+    var isKeyDown: (PushToTalkKey) -> Bool = { key in
+        CGEventSource.keyState(.combinedSessionState, key: CGKeyCode(key.keyCode))
+    }
+
     init() {}
 
     @discardableResult
@@ -124,14 +132,15 @@ final class HotkeyMonitor: HotkeySource {
     }
 
     /// Handles one tap event, already reduced to plain values. Returns true when the event
-    /// should be swallowed.
-    fileprivate func handle(type: CGEventType, keyCode: Int64, flags: CGEventFlags) -> Bool {
+    /// should be swallowed. Internal so the reconciliation path is unit-testable.
+    func handle(type: CGEventType, keyCode: Int64, flags: CGEventFlags) -> Bool {
         switch type {
         case .tapDisabledByTimeout, .tapDisabledByUserInput:
             Log.hotkey.error("event tap disabled (type \(type.rawValue, privacy: .public)); re-enabling")
             if let tap {
                 CGEvent.tapEnable(tap: tap, enable: true)
             }
+            reconcilePressedState()
             return false
         case .flagsChanged:
             guard keyCode == key.keyCode else {
@@ -151,6 +160,20 @@ final class HotkeyMonitor: HotkeySource {
         default:
             return false
         }
+    }
+
+    /// While the tap was disabled it delivered no events, so a release that happened in that
+    /// window produced no `.flagsChanged` and `isPressed` is stale-high: the utterance would
+    /// never end and the mic would stay hot. On re-enable, compare against the real key state
+    /// and emit the missed release. Only the release direction is reconciled; a missed press
+    /// is left alone rather than start recording from a key the user is merely still holding.
+    private func reconcilePressedState() {
+        guard isPressed, !isKeyDown(key) else {
+            return
+        }
+        Log.hotkey.error("reconciled a missed release for \(self.key.displayName, privacy: .public) after the tap was re-enabled")
+        isPressed = false
+        onRelease?()
     }
 }
 

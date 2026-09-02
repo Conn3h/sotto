@@ -201,7 +201,13 @@ Behaviour:
   whose keycode equals `key.keyCode`.
 - Only transitions fire callbacks (track `isPressed`; ignore repeats).
 - On `.tapDisabledByTimeout` or `.tapDisabledByUserInput`, re-enable the tap and pass the
-  event through.
+  event through. While the tap was disabled it delivered no events, so a key-up in that
+  window produced no `.flagsChanged` and `isPressed` would be stale-high, stranding the
+  utterance with the mic hot. After re-enabling, **reconcile**: read the key's real state
+  (`CGEventSource.keyState(.combinedSessionState, key: key.keyCode)`, by keycode — the
+  device-specific modifier bits are not reliable in `CGEventSource` flag state) and, if the
+  key is no longer down while `isPressed` is true, emit the missed release. Only the release
+  direction is reconciled; a missed press is left alone.
 - Return `nil` from the callback to swallow the event when `consumesEvent`, otherwise pass
   it through untouched. fn is never swallowed: swallowing it breaks fn-arrow, fn-delete and
   the emoji picker.
@@ -212,6 +218,12 @@ Behaviour:
 - `stop()` disables the tap, removes the run loop source, and resets `isPressed` **without
   emitting a release**; the controller is responsible for ending any utterance before it
   stops or reloads the monitor (§6.7).
+
+The tap needs Accessibility and real events, so `handle(type:keyCode:flags:)` is internal
+and the key-state probe is injectable, and `Tests/SottoAppTests/HotkeyMonitorTests.swift`
+drives `handle` with plain values and a fake probe to cover: a key-up lost while the tap was
+disabled is reconciled into a release on re-enable; and no spurious release fires when the
+key is still physically held across a tap flap.
 
 ### 6.5 Audio — `Core/AudioCapture.swift`
 
@@ -348,7 +360,9 @@ struct Utterance: Sendable {
          makeEngine: @escaping @MainActor () -> any TranscriptionEngine,
          errorDisplayDuration: Duration = .seconds(3),
          engineFinishTimeout: Duration = .seconds(2),   // cap on engine.finish() in the terminal path
-         minimumHold: Duration = .milliseconds(250))    // a shorter release is a mis-tap: cancel, don't finalize
+         minimumHold: Duration = .milliseconds(250),    // a shorter release is a mis-tap: cancel, don't finalize
+         maxHold: Duration = .seconds(180),             // cap on .listening: a stuck recording ends as a release
+         deliveryTimeout: Duration = .seconds(10))      // cap on onFinalTranscript so a hung pipeline cannot wedge .finishing
 
     /// Receives the final raw transcript once per utterance. Awaited before returning to idle.
     var onFinalTranscript: (@MainActor (String, Utterance) async -> Void)?
@@ -390,7 +404,12 @@ state `.starting`, transcript cleared, `holdStartedAt` set. Start the **setup ta
    `level += (new - level) * 0.35` if the generation is still current.
 6. State `.listening`; play the start sound if `Settings.shared.soundEnabled`. Start the
    **consume task** on the main actor: `for try await snapshot in stream { transcript =
-   snapshot.text }`; if the stream throws, log and terminate with `.failed(message)`.
+   snapshot.text }`; if the stream throws, log and terminate with `.failed(message)`. Also
+   start the **watchdog task**: after `maxHold`, if the utterance is still the live
+   generation and still `.listening`, terminate with `.released`. This is the backstop for a
+   release that is never delivered (a key-up lost while the event tap was disabled, or during
+   sleep or screen lock); `maxHold` is generous so no real hold is cut short. `terminate`
+   cancels the watchdog when any real terminal event arrives.
 
 Any thrown error in the setup task terminates with `.failed(message)`. If the session was
 terminated while the setup task was suspended, the setup task's next check sees the
@@ -420,7 +439,11 @@ it (below).
      analyzer's `finalizeAndFinishThroughEndOfInput`) can never wedge the utterance in
      `.finishing`. `.tapped` / `.failed` / `.aborted` → `await engine.cancel()`.
   4. Await the consume task (it ends when the stream finishes).
-  5. `.released` with a non-blank transcript → `await onFinalTranscript?(raw, utterance)`.
+  5. `.released` with a non-blank transcript → deliver `onFinalTranscript?(raw, utterance)`,
+     bounded by `deliveryTimeout`: if delivery (formatting + injection) does not finish in
+     time the controller stops waiting and proceeds to idle, so a hung pipeline or AX injection
+     cannot wedge `.finishing` (the one state the Stop button cannot rescue). The in-flight
+     delivery is left running rather than cancelled, so a slow injection is never cut mid-paste.
   6. Clear the session and `holdStartedAt`; state `.idle` for `.released`/`.tapped`/`.aborted`,
      or `.error(message)` for `.failed`, which auto-returns to `.idle` after
      `errorDisplayDuration` unless the state has changed since.
@@ -458,6 +481,10 @@ as its own test:
   no callback, idle (the quick-tap instant-recovery path).
 - a `.released` whose `engine.finish()` never returns → bounded by `engineFinishTimeout`,
   after which the engine is cancelled and the controller reaches `.idle` (no wedge).
+- a `.listening` utterance that is never released → the `maxHold` watchdog ends it as a
+  release, delivering the transcript and reaching `.idle` (the lost-release backstop).
+- a `.released` whose `onFinalTranscript` never returns → bounded by `deliveryTimeout`,
+  after which the controller reaches `.idle` without waiting (no `.finishing` wedge).
 - stale level callback (from the previous generation) does not change `level`.
 - `.button` source is passed through to the callback.
 

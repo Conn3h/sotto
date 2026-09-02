@@ -86,6 +86,7 @@ final class DictationController {
         var drainTask: Task<Void, Never>?
         var consumeTask: Task<Void, Never>?
         var terminalTask: Task<Void, Never>?
+        var watchdogTask: Task<Void, Never>?
 
         init(id: Int, source: UtteranceSource, pressedAt: ContinuousClock.Instant) {
             self.id = id
@@ -139,6 +140,20 @@ final class DictationController {
     /// this; anything longer that still captured no usable audio falls back to the bounded
     /// finish. Zero disables the fast path, so a release is always finalized.
     @ObservationIgnored private let minimumHold: Duration
+    /// A cap on how long one utterance may stay in `.listening`. If a release is never
+    /// delivered (the event tap was disabled across a lost key-up, or the key came up during
+    /// sleep or screen lock), nothing else would end the utterance and the mic would stay hot.
+    /// When this elapses the utterance ends as a release, so a stuck recording self-heals and
+    /// whatever was transcribed is still delivered. Generous by default so no real hold is cut
+    /// short; hotkey reconciliation handles the common lost-release case long before this.
+    @ObservationIgnored private let maxHold: Duration
+    /// A cap on final-transcript delivery (`onFinalTranscript`, which formats and injects the
+    /// text). Its steps are individually bounded today, but this guarantees the terminal task
+    /// cannot hold `.finishing` beyond a fixed cap if the pipeline or an AX injection ever
+    /// hangs, and `.finishing` is the one state the Stop button cannot rescue. On timeout the
+    /// controller stops waiting and returns to idle; the in-flight delivery is left to finish
+    /// on its own rather than cancelled mid-paste.
+    @ObservationIgnored private let deliveryTimeout: Duration
     @ObservationIgnored private let clock = ContinuousClock()
     @ObservationIgnored private var generation = 0
     @ObservationIgnored private var session: Session?
@@ -151,7 +166,9 @@ final class DictationController {
         makeEngine: @escaping @MainActor () -> any TranscriptionEngine,
         errorDisplayDuration: Duration = .seconds(3),
         engineFinishTimeout: Duration = .seconds(2),
-        minimumHold: Duration = .milliseconds(250)
+        minimumHold: Duration = .milliseconds(250),
+        maxHold: Duration = .seconds(180),
+        deliveryTimeout: Duration = .seconds(10)
     ) {
         self.hotkey = hotkey
         self.capture = capture
@@ -160,6 +177,8 @@ final class DictationController {
         self.errorDisplayDuration = errorDisplayDuration
         self.engineFinishTimeout = engineFinishTimeout
         self.minimumHold = minimumHold
+        self.maxHold = maxHold
+        self.deliveryTimeout = deliveryTimeout
     }
 
     // MARK: Public controls
@@ -355,6 +374,30 @@ final class DictationController {
         session.consumeTask = track { [weak self] in
             await self?.consume(snapshots, for: session)
         }
+        startWatchdog(session)
+    }
+
+    /// Caps `.listening` at `maxHold`. If a release is never delivered nothing else would end
+    /// the utterance; when the cap elapses this ends it as a release, so the mic cannot stay
+    /// hot indefinitely. Cancelled by `terminate` the moment any real terminal event arrives.
+    private func startWatchdog(_ session: Session) {
+        session.watchdogTask = track { [weak self] in
+            guard let self else {
+                return
+            }
+            do {
+                try await Task.sleep(for: self.maxHold)
+            } catch {
+                return
+            }
+            guard self.isLive(session), self.state == .listening else {
+                return
+            }
+            Log.app.error(
+                "utterance \(session.id, privacy: .public) hit the \(self.maxHold, privacy: .public) max-hold cap; ending as a release so the mic does not stay hot"
+            )
+            self.terminate(session, reason: .released)
+        }
     }
 
     private func consume(
@@ -404,6 +447,7 @@ final class DictationController {
             return
         }
         session.setupTask?.cancel()
+        session.watchdogTask?.cancel()
         let releasedInstant = clock.now
         session.releasedAt = releasedInstant
         session.releasedDate = Date()
@@ -474,7 +518,7 @@ final class DictationController {
                 Log.app.info(
                     "utterance \(session.id, privacy: .public) final transcript ready: \(raw.count, privacy: .public) chars, held \(utterance.heldSeconds, privacy: .public)s"
                 )
-                await onFinalTranscript?(raw, utterance)
+                await deliverBounded(raw, utterance, id: session.id)
             }
         }
 
@@ -516,6 +560,33 @@ final class DictationController {
     }
 
     // MARK: Task bookkeeping
+
+    /// Delivers the final transcript but never lets a hung pipeline or injection hold the
+    /// controller in `.finishing` (the one state the Stop button cannot rescue). If delivery
+    /// does not finish within `deliveryTimeout`, stop waiting and let the terminal task return
+    /// to idle. The in-flight delivery is left running rather than cancelled: a mid-paste
+    /// cancel could corrupt the injection or leave the pasteboard unrestored.
+    private func deliverBounded(_ raw: String, _ utterance: Utterance, id: Int) async {
+        guard onFinalTranscript != nil else {
+            return
+        }
+        let latch = RaceLatch()
+        Task { @MainActor in
+            await self.onFinalTranscript?(raw, utterance)
+            latch.resolve(true)
+        }
+        let timer = Task { @MainActor in
+            try? await Task.sleep(for: deliveryTimeout)
+            latch.resolve(false)
+        }
+        if await latch.value() {
+            timer.cancel()
+        } else {
+            Log.app.error(
+                "utterance \(id, privacy: .public) transcript delivery did not finish within \(self.deliveryTimeout, privacy: .public); leaving .finishing to avoid a wedge"
+            )
+        }
+    }
 
     /// Awaits `engine.finish()` but never lets it hang the utterance. If finish does not
     /// return within `engineFinishTimeout`, cancel the engine (its abort path ends the

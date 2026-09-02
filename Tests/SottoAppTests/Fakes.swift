@@ -338,7 +338,9 @@ final class Harness {
         microphoneAllowed: Bool = true,
         errorDisplayDuration: Duration = .seconds(3),
         engineFinishTimeout: Duration = .seconds(2),
-        minimumHold: Duration = .zero
+        minimumHold: Duration = .zero,
+        maxHold: Duration = .seconds(180),
+        deliveryTimeout: Duration = .seconds(10)
     ) {
         let hotkey = FakeHotkey()
         let capture = FakeCapture()
@@ -357,7 +359,9 @@ final class Harness {
             makeEngine: { factory.make() },
             errorDisplayDuration: errorDisplayDuration,
             engineFinishTimeout: engineFinishTimeout,
-            minimumHold: minimumHold
+            minimumHold: minimumHold,
+            maxHold: maxHold,
+            deliveryTimeout: deliveryTimeout
         )
         controller.onFinalTranscript = { [weak self] text, utterance in
             self?.received.append((text: text, utterance: utterance))
