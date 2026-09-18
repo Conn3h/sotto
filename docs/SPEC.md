@@ -349,10 +349,11 @@ enum SpeechEngineChoice: String, CaseIterable, Sendable { case apple, parakeet }
     static let version: AsrModelVersion   // .v2, English-only
     private(set) var state: State
     func prepare()                        // download + load once; idempotent; retried after a failure
-    func readyModels() throws -> AsrModels // throws modelInstallFailed with the reason while not ready
+    struct Loaded: Sendable { let asr: AsrModels; let ctc: CtcModels? }
+    func readyModels() throws -> Loaded  // throws modelInstallFailed with the reason while not ready
 }
 
-actor ParakeetSpeechEngine: TranscriptionEngine { init() }
+actor ParakeetSpeechEngine: TranscriptionEngine { init(biasPhrases: [String] = []) }
 ```
 
 Behaviour:
@@ -377,8 +378,15 @@ Behaviour:
   drain (the library never ends its update stream), yields the final snapshot, and releases.
 - `cancel()` cancels the manager, the drain, finishes the stream with `CancellationError`,
   and releases; the same phase machine and idempotence rules as `AppleSpeechEngine`.
-- Bias phrases are not applied (FluidAudio's vocabulary boosting needs a separate CTC model);
-  dictionary corrections still run in the pipeline. Settings shows this in the engine caption.
+- Bias phrases are applied as FluidAudio vocabulary boosting: `ParakeetModels` also loads the
+  separate CTC 110M encoder (`CtcModels.downloadAndLoad()`), and `start()` calls
+  `configureVocabularyBoosting` with one `CustomVocabularyTerm` per phrase before streaming
+  begins, logging the count. The rescorer runs with `spotterRescueEnabled: false`: the
+  acoustic rescue replaces correctly heard words with unspoken dictionary terms (a
+  "Kubernetes" entry swallowed "the quick brown fox" in testing), and the library's own
+  benchmarks show turning it off cuts false positives roughly five-fold while raising recall. A CTC load failure is logged and leaves `Loaded.ctc` nil; the
+  engine then transcribes without bias and logs the skipped count. Corrections still run in
+  the pipeline either way.
 - Settings gets an "Engine" section: a `SegmentedChoice` over `SpeechEngineChoice` and a
   caption that reflects `ParakeetModels.state`.
 

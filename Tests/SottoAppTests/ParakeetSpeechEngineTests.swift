@@ -48,6 +48,39 @@ struct ParakeetSpeechEngineTests {
         _ = sawNonFinal
     }
 
+    /// Vocabulary boosting needs the CTC model as well; exercised only when both are cached.
+    @Test func transcribesWithBiasPhrasesConfigured() async throws {
+        let cache = AsrModels.defaultCacheDirectory(for: ParakeetModels.version)
+        guard AsrModels.modelsExist(at: cache),
+              CtcModels.modelsExist(at: CtcModels.defaultCacheDirectory()) else {
+            return
+        }
+        try await Self.waitForModels()
+
+        let audioURL = try Self.synthesise(Self.phrase)
+        defer { try? FileManager.default.removeItem(at: audioURL) }
+
+        // None of these are spoken; boosting must leave the sentence alone.
+        let phrases = ["Claude Code", "Sotto", "Kubernetes"]
+        let engine = ParakeetSpeechEngine(biasPhrases: phrases)
+        let snapshots = try await engine.start()
+        let format = try #require(await engine.preferredInputFormat())
+        for chunk in try Self.chunks(of: audioURL, in: format) {
+            await engine.feed(chunk)
+        }
+        await engine.finish()
+
+        var finalText: String?
+        for try await snapshot in snapshots where snapshot.isFinal {
+            finalText = snapshot.text
+        }
+        let text = try #require(finalText)
+        #expect(text.lowercased().contains(Self.expectedFragment), "got: \(text)")
+        for phrase in phrases {
+            #expect(!text.lowercased().contains(phrase.lowercased()), "unspoken phrase injected: \(text)")
+        }
+    }
+
     @Test func finishBeforeAnyAudioYieldsEmptyFinal() async throws {
         let cache = AsrModels.defaultCacheDirectory(for: ParakeetModels.version)
         guard AsrModels.modelsExist(at: cache) else {

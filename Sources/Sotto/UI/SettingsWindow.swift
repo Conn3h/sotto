@@ -98,7 +98,7 @@ struct SettingsWindow: View {
         case .loading:
             return "Loading Parakeet models."
         case .ready:
-            return "NVIDIA Parakeet, on device. Dictionary corrections still apply; bias phrases do not."
+            return "NVIDIA Parakeet, on device. Dictionary words bias recognition."
         case .failed(let reason):
             return "Parakeet failed to load: \(reason)"
         }

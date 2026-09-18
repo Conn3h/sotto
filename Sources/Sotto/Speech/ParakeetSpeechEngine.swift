@@ -31,14 +31,24 @@ actor ParakeetSpeechEngine: TranscriptionEngine {
         interleaved: false
     )
 
+    /// The library's acoustic "spotter rescue" proposes a dictionary term wherever the CTC
+    /// spotter hears it, even when the transcript looks nothing like it. On a personal
+    /// dictionary that replaces correctly heard words with terms that were never spoken (a
+    /// "Kubernetes" entry swallowed "the quick brown fox" in testing). Off, boosting only
+    /// rescores spans that already resemble a term, which is the behaviour dictation wants.
+    private static let rescorerConfig = VocabularyRescorer.Config(spotterRescueEnabled: false)
+
     private var phase: Phase = .idle
     private var manager: SlidingWindowAsrManager?
     private var outputContinuation: AsyncThrowingStream<TranscriptSnapshot, Error>.Continuation?
     private var drainTask: Task<Void, Never>?
     /// The last transcript shown, kept so a failed `finish()` still hands something back.
     private var latest = ""
+    private let biasPhrases: [String]
 
-    init() {}
+    init(biasPhrases: [String] = []) {
+        self.biasPhrases = biasPhrases
+    }
 
     // MARK: TranscriptionEngine
 
@@ -146,7 +156,8 @@ actor ParakeetSpeechEngine: TranscriptionEngine {
     // MARK: Start sequence
 
     private func performStart() async throws -> AsyncThrowingStream<TranscriptSnapshot, Error> {
-        let models = try await ParakeetModels.shared.readyModels()
+        let loaded = try await ParakeetModels.shared.readyModels()
+        let models = loaded.asr
         try checkLive()
 
         // The streaming preset is tuned for live feedback; the blank id must match the
@@ -156,6 +167,8 @@ actor ParakeetSpeechEngine: TranscriptionEngine {
         let manager = SlidingWindowAsrManager(config: config)
         self.manager = manager
         try await manager.loadModels(models)
+        try checkLive()
+        try await configureBias(on: manager, ctc: loaded.ctc)
         try checkLive()
 
         // The update stream must be taken before streaming starts or early windows are lost.
@@ -172,6 +185,26 @@ actor ParakeetSpeechEngine: TranscriptionEngine {
         phase = .running
         Log.speech.info("parakeet start: model \(String(describing: models.version), privacy: .public)")
         return output
+    }
+
+    /// Bias phrases reach Parakeet as vocabulary boosting: a CTC keyword spotter scores each
+    /// term against the audio and rescores the transcript where the evidence is strong.
+    /// Nothing to do without phrases; logged and skipped when the CTC model is missing.
+    private func configureBias(on manager: SlidingWindowAsrManager, ctc: CtcModels?) async throws {
+        guard !biasPhrases.isEmpty else {
+            return
+        }
+        guard let ctc else {
+            Log.speech.error("parakeet: \(self.biasPhrases.count, privacy: .public) bias phrases skipped, no CTC model")
+            return
+        }
+        let vocabulary = CustomVocabularyContext(terms: biasPhrases.map { CustomVocabularyTerm(text: $0) })
+        try await manager.configureVocabularyBoosting(
+            vocabulary: vocabulary,
+            ctcModels: ctc,
+            config: Self.rescorerConfig
+        )
+        Log.speech.info("bias phrases set: \(self.biasPhrases.count, privacy: .public)")
     }
 
     /// Throws when the engine was cancelled or the calling task was, so a suspended

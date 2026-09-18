@@ -2,8 +2,8 @@ import FluidAudio
 import Foundation
 import Observation
 
-/// The Parakeet CoreML bundles, downloaded and loaded once per process and shared by every
-/// `ParakeetSpeechEngine`. Loading is kicked off at launch (when Parakeet is selected) or
+/// The Parakeet CoreML bundles, plus the CTC model that vocabulary boosting needs, downloaded
+/// and loaded once per process and shared by every `ParakeetSpeechEngine`. Loading is kicked off at launch (when Parakeet is selected) or
 /// when the user switches to it, never by a press: a press that arrives while the models
 /// are still on their way fails fast with a message instead of hanging the utterance.
 @MainActor
@@ -17,6 +17,13 @@ final class ParakeetModels {
         case failed(String)
     }
 
+    /// Everything one utterance needs. `ctc` is nil when that download or load failed; the
+    /// engine then transcribes without bias phrases and logs it.
+    struct Loaded: Sendable {
+        let asr: AsrModels
+        let ctc: CtcModels?
+    }
+
     static let shared = ParakeetModels()
 
     /// English-only v2: tighter vocabulary and better recall on English than the
@@ -26,8 +33,8 @@ final class ParakeetModels {
     private static let progressStep = 0.01
 
     private(set) var state: State = .idle
-    @ObservationIgnored private var loadTask: Task<AsrModels, any Error>?
-    @ObservationIgnored private var loaded: AsrModels?
+    @ObservationIgnored private var loadTask: Task<Loaded, any Error>?
+    @ObservationIgnored private var loaded: Loaded?
     @ObservationIgnored private var lastReportedFraction = -1.0
 
     private init() {}
@@ -41,12 +48,13 @@ final class ParakeetModels {
         state = .downloading(fraction: 0)
         lastReportedFraction = -1
         Log.speech.info("parakeet: preparing models \(String(describing: Self.version), privacy: .public)")
-        let task = Task { [weak self] () throws -> AsrModels in
-            try await AsrModels.downloadAndLoad(version: Self.version) { progress in
+        let task = Task { [weak self] () throws -> Loaded in
+            let asr = try await AsrModels.downloadAndLoad(version: Self.version) { progress in
                 Task { @MainActor in
                     self?.report(progress)
                 }
             }
+            return Loaded(asr: asr, ctc: await Self.loadCtcModels())
         }
         loadTask = task
         Task { [weak self] in
@@ -56,7 +64,7 @@ final class ParakeetModels {
 
     /// The loaded models. Throws `modelInstallFailed` with a user-readable reason while
     /// they are still downloading or loading, or after the load failed.
-    func readyModels() throws -> AsrModels {
+    func readyModels() throws -> Loaded {
         if let loaded {
             return loaded
         }
@@ -92,7 +100,20 @@ final class ParakeetModels {
         }
     }
 
-    private func settle(_ task: Task<AsrModels, any Error>) async {
+    /// The CTC encoder behind vocabulary boosting. A failure here is logged and leaves the
+    /// engine usable without bias phrases rather than failing the whole load.
+    private static func loadCtcModels() async -> CtcModels? {
+        do {
+            let ctc = try await CtcModels.downloadAndLoad()
+            Log.speech.info("parakeet: CTC models ready for vocabulary boosting")
+            return ctc
+        } catch {
+            Log.speech.error("parakeet: CTC model load failed, bias phrases disabled: \(error.localizedDescription, privacy: .public)")
+            return nil
+        }
+    }
+
+    private func settle(_ task: Task<Loaded, any Error>) async {
         let clock = ContinuousClock()
         let started = clock.now
         do {
