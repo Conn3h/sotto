@@ -8,6 +8,11 @@ import PackageDescription
 let package = Package(
     name: "Sotto",
     platforms: [.macOS(.v26)],
+    dependencies: [
+        // NVIDIA Parakeet TDT as CoreML, behind the engine seam as an experimental second engine
+        // for side-by-side accuracy testing against Apple's SpeechAnalyzer (SPEC 6.6a).
+        .package(url: "https://github.com/FluidInference/FluidAudio.git", from: "0.15.7", traits: []),
+    ],
     targets: [
         .target(
             name: "SottoText",
@@ -21,7 +26,11 @@ let package = Package(
         ),
         .executableTarget(
             name: "Sotto",
-            dependencies: ["SottoText", "SottoDictionary"],
+            dependencies: [
+                "SottoText",
+                "SottoDictionary",
+                .product(name: "FluidAudio", package: "FluidAudio"),
+            ],
             path: "Sources/Sotto",
             swiftSettings: [.swiftLanguageMode(.v6)]
         ),

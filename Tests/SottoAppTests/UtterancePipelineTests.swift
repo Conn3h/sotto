@@ -35,7 +35,7 @@ private struct PipelineHarness {
         )
         self.recorder = recorder
         pipeline = UtterancePipeline(
-            engineName: Self.engineName,
+            readEngineName: { Self.engineName },
             readSettings: { settings },
             makeCorrector: { DictionaryCorrector(entries: entries) },
             recordHistory: { run in recorder.recorded.append(run) },

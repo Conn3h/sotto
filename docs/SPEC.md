@@ -30,8 +30,7 @@ marked "as built" below.
 
 ## 2. Non-goals for v1
 
-Explicitly out: Windows, any non-Apple speech engine (the engine seam exists; only one
-implementation ships), comparison tooling against other dictation apps, command mode
+Explicitly out: Windows, comparison tooling against other dictation apps, command mode
 ("make this more formal"), onboarding flow, notarization, an installer, cloud anything,
 GitHub Actions (tests run locally via `make test`; CI stays off for now), and live
 file-watching of the dictionary (see §6.12).
@@ -331,6 +330,57 @@ Called once at app launch (§6.15) so a cold machine pays the asset download bef
 first hold rather than during it.
 
 Never log transcript text.
+
+### 6.6a Parakeet (experimental) — `Speech/ParakeetSpeechEngine.swift`, `Speech/ParakeetModels.swift`, `Speech/SpeechEngineChoice.swift`
+
+A second engine behind the same seam, for side-by-side accuracy testing against Apple. It
+is the one third-party dependency: `FluidAudio` (SwiftPM, statically linked, `traits: []`
+so the NeMo text-normalisation xcframework is not pulled in), which ships NVIDIA
+Parakeet TDT 0.6B as CoreML. FluidAudio's own resource bundle is only read by its TTS code,
+which Sotto never calls, so `make app` does not copy it.
+
+```swift
+enum SpeechEngineChoice: String, CaseIterable, Sendable { case apple, parakeet }
+    // displayName for Settings, engineName ("Apple" / "Parakeet") for DictationRun.engine
+
+@MainActor @Observable final class ParakeetModels {
+    enum State: Equatable, Sendable { case idle, downloading(fraction: Double), loading, ready, failed(String) }
+    static let shared: ParakeetModels
+    static let version: AsrModelVersion   // .v2, English-only
+    private(set) var state: State
+    func prepare()                        // download + load once; idempotent; retried after a failure
+    func readyModels() throws -> AsrModels // throws modelInstallFailed with the reason while not ready
+}
+
+actor ParakeetSpeechEngine: TranscriptionEngine { init() }
+```
+
+Behaviour:
+
+- `Settings.speechEngine` (default `.apple`) is read per press by `AppComposition`'s engine
+  factory, which also records the choice's `engineName` for the pipeline's history record
+  (`UtterancePipeline.init(readEngineName:)`), so a switch made mid-utterance cannot mislabel
+  a run.
+- Models live in FluidAudio's default cache (`~/Library/Application Support/FluidAudio/Models/`).
+  `ParakeetModels.prepare()` runs at launch when Parakeet is selected and when the user
+  switches to it in Settings, never from a press: a press while the models are downloading
+  or loading throws `modelInstallFailed` with the progress, which the HUD shows as an error,
+  rather than holding the utterance open for a multi-minute download.
+- `preferredInputFormat()` is 16 kHz mono Float32, so capture converts once and the
+  library's converter takes its no-op path.
+- `start()` builds a `SlidingWindowAsrManager` with the `.streaming` preset and the model
+  version's blank id, takes its update stream **before** `startStreaming`, and runs a drain
+  task that, after each update, reads the manager's confirmed and volatile transcripts and
+  yields their join as a non-final snapshot.
+- `finish()` awaits the manager's `finish()` (which flushes the remaining audio and returns
+  the final text; on error the last live text is kept and the error logged), cancels the
+  drain (the library never ends its update stream), yields the final snapshot, and releases.
+- `cancel()` cancels the manager, the drain, finishes the stream with `CancellationError`,
+  and releases; the same phase machine and idempotence rules as `AppleSpeechEngine`.
+- Bias phrases are not applied (FluidAudio's vocabulary boosting needs a separate CTC model);
+  dictionary corrections still run in the pipeline. Settings shows this in the engine caption.
+- Settings gets an "Engine" section: a `SegmentedChoice` over `SpeechEngineChoice` and a
+  caption that reflects `ParakeetModels.state`.
 
 ### 6.7 Controller — `Core/DictationController.swift`
 

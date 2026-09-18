@@ -10,11 +10,13 @@ struct SettingsWindow: View {
 
     @Bindable private var settings = Settings.shared
     @State private var status = PermissionStatus.shared
+    @State private var parakeet = ParakeetModels.shared
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: DS.Space.wide) {
                 pushToTalkSection
+                engineSection
                 cleanupSection
                 soundSection
                 permissionsSection
@@ -51,6 +53,54 @@ struct SettingsWindow: View {
                     .font(DS.Font.caption)
                     .foregroundStyle(DS.Color.inkTertiary)
             }
+        }
+    }
+
+    private var engineSection: some View {
+        Panel {
+            VStack(alignment: .leading, spacing: DS.Space.base) {
+                SectionHeader(title: "Engine")
+                SegmentedChoice(
+                    options: SpeechEngineChoice.allCases,
+                    selection: Binding(
+                        get: { settings.speechEngine },
+                        set: { newValue in
+                            settings.speechEngine = newValue
+                            if newValue == .parakeet {
+                                parakeet.prepare()
+                            }
+                        }
+                    )
+                ) { $0.displayName }
+                Text(engineCaption)
+                    .font(DS.Font.caption)
+                    .foregroundStyle(DS.Color.inkTertiary)
+            }
+        }
+    }
+
+    private var engineCaption: String {
+        switch settings.speechEngine {
+        case .apple:
+            return "Apple's on-device recognizer. Dictionary words bias recognition."
+        case .parakeet:
+            return parakeetCaption
+        }
+    }
+
+    private var parakeetCaption: String {
+        switch parakeet.state {
+        case .idle:
+            return "NVIDIA Parakeet, on device. Models download on first use."
+        case .downloading(let fraction):
+            let percent = Int((fraction * 100).rounded(.down))
+            return "Downloading Parakeet models, \(percent)%."
+        case .loading:
+            return "Loading Parakeet models."
+        case .ready:
+            return "NVIDIA Parakeet, on device. Dictionary corrections still apply; bias phrases do not."
+        case .failed(let reason):
+            return "Parakeet failed to load: \(reason)"
         }
     }
 

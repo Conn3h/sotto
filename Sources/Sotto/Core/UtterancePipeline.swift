@@ -21,10 +21,11 @@ final class UtterancePipeline {
     typealias HistoryRecorder = @MainActor (DictationRun) -> Void
     typealias Injector = @MainActor (String) async -> Void
     typealias SoundPlayer = @MainActor () -> Void
+    typealias EngineNameReader = @MainActor () -> String
 
     private static let endSoundName = "Pop"
 
-    private let engineName: String
+    private let readEngineName: EngineNameReader
     private let readSettings: SettingsReader
     private let makeCorrector: CorrectorProvider
     private let recordHistory: HistoryRecorder
@@ -35,14 +36,14 @@ final class UtterancePipeline {
     /// Every closure is a seam for tests. The app uses the defaults: the shared settings
     /// and dictionary, the history log, the focused app, and the system end sound.
     init(
-        engineName: String = "Apple",
+        readEngineName: @escaping EngineNameReader = { SpeechEngineChoice.apple.engineName },
         readSettings: @escaping SettingsReader = UtterancePipeline.readSharedSettings,
         makeCorrector: @escaping CorrectorProvider = { DictionaryStore.shared.corrector },
         recordHistory: @escaping HistoryRecorder = { run in HistoryLog.record(run) },
         inject: @escaping Injector = { text in await TextInjector.insert(text) },
         playEndSound: @escaping SoundPlayer = UtterancePipeline.playSystemEndSound
     ) {
-        self.engineName = engineName
+        self.readEngineName = readEngineName
         self.readSettings = readSettings
         self.makeCorrector = makeCorrector
         self.recordHistory = recordHistory
@@ -80,7 +81,7 @@ final class UtterancePipeline {
         let processSeconds = Self.seconds(clock.now - entered)
         let run = DictationRun(
             date: utterance.releasedAt,
-            engine: engineName,
+            engine: readEngineName(),
             source: utterance.source.rawValue,
             audioSeconds: utterance.heldSeconds,
             processSeconds: processSeconds,

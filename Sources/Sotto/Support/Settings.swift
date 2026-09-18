@@ -13,6 +13,7 @@ final class Settings {
         static let cleanupEnabled = "cleanupEnabled"
         static let smartCleanup = "smartCleanup"
         static let soundEnabled = "soundEnabled"
+        static let speechEngine = "speechEngine"
     }
 
     @ObservationIgnored private let defaults: UserDefaults
@@ -33,6 +34,10 @@ final class Settings {
         didSet { defaults.set(soundEnabled, forKey: Key.soundEnabled) }
     }
 
+    var speechEngine: SpeechEngineChoice {
+        didSet { defaults.set(speechEngine.rawValue, forKey: Key.speechEngine) }
+    }
+
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
         pushToTalkKey = defaults.string(forKey: Key.pushToTalkKey)
@@ -40,6 +45,8 @@ final class Settings {
         cleanupEnabled = Self.bool(forKey: Key.cleanupEnabled, in: defaults, default: true)
         smartCleanup = Self.bool(forKey: Key.smartCleanup, in: defaults, default: false)
         soundEnabled = Self.bool(forKey: Key.soundEnabled, in: defaults, default: true)
+        speechEngine = defaults.string(forKey: Key.speechEngine)
+            .flatMap(SpeechEngineChoice.init(rawValue:)) ?? .apple
     }
 
     /// `UserDefaults.bool(forKey:)` returns false for a missing key, which would silently

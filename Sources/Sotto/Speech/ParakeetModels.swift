@@ -1,0 +1,114 @@
+import FluidAudio
+import Foundation
+import Observation
+
+/// The Parakeet CoreML bundles, downloaded and loaded once per process and shared by every
+/// `ParakeetSpeechEngine`. Loading is kicked off at launch (when Parakeet is selected) or
+/// when the user switches to it, never by a press: a press that arrives while the models
+/// are still on their way fails fast with a message instead of hanging the utterance.
+@MainActor
+@Observable
+final class ParakeetModels {
+    enum State: Equatable, Sendable {
+        case idle
+        case downloading(fraction: Double)
+        case loading
+        case ready
+        case failed(String)
+    }
+
+    static let shared = ParakeetModels()
+
+    /// English-only v2: tighter vocabulary and better recall on English than the
+    /// multilingual v3, which is what a side-by-side against Apple needs.
+    nonisolated static let version: AsrModelVersion = .v2
+    /// Progress is reported per byte; only whole-percent steps reach the UI.
+    private static let progressStep = 0.01
+
+    private(set) var state: State = .idle
+    @ObservationIgnored private var loadTask: Task<AsrModels, any Error>?
+    @ObservationIgnored private var loaded: AsrModels?
+    @ObservationIgnored private var lastReportedFraction = -1.0
+
+    private init() {}
+
+    /// Starts the download and load if it is not already under way or done. Safe to call
+    /// repeatedly; a failed load is retried on the next call.
+    func prepare() {
+        if loaded != nil || loadTask != nil {
+            return
+        }
+        state = .downloading(fraction: 0)
+        lastReportedFraction = -1
+        Log.speech.info("parakeet: preparing models \(String(describing: Self.version), privacy: .public)")
+        let task = Task { [weak self] () throws -> AsrModels in
+            try await AsrModels.downloadAndLoad(version: Self.version) { progress in
+                Task { @MainActor in
+                    self?.report(progress)
+                }
+            }
+        }
+        loadTask = task
+        Task { [weak self] in
+            await self?.settle(task)
+        }
+    }
+
+    /// The loaded models. Throws `modelInstallFailed` with a user-readable reason while
+    /// they are still downloading or loading, or after the load failed.
+    func readyModels() throws -> AsrModels {
+        if let loaded {
+            return loaded
+        }
+        switch state {
+        case .idle:
+            prepare()
+            throw TranscriptionError.modelInstallFailed("Parakeet models are not downloaded yet. Downloading now; try again shortly.")
+        case .downloading(let fraction):
+            let percent = Int((fraction * 100).rounded(.down))
+            throw TranscriptionError.modelInstallFailed("Parakeet models are still downloading (\(percent)%).")
+        case .loading:
+            throw TranscriptionError.modelInstallFailed("Parakeet models are still loading.")
+        case .failed(let reason):
+            // A press after a failure retries the load, so a transient network error does not
+            // strand the engine until the next launch.
+            prepare()
+            throw TranscriptionError.modelInstallFailed("Parakeet models failed to load: \(reason). Retrying.")
+        case .ready:
+            Log.speech.error("parakeet: state is ready but no models are held")
+            throw TranscriptionError.modelInstallFailed("Parakeet models are unavailable.")
+        }
+    }
+
+    private func report(_ progress: DownloadProgress) {
+        guard progress.fractionCompleted - lastReportedFraction >= Self.progressStep else {
+            return
+        }
+        lastReportedFraction = progress.fractionCompleted
+        if progress.fractionCompleted >= 1 {
+            state = .loading
+        } else {
+            state = .downloading(fraction: progress.fractionCompleted)
+        }
+    }
+
+    private func settle(_ task: Task<AsrModels, any Error>) async {
+        let clock = ContinuousClock()
+        let started = clock.now
+        do {
+            let models = try await task.value
+            loaded = models
+            state = .ready
+            let seconds = Self.seconds(clock.now - started)
+            Log.speech.info("parakeet: models ready in \(seconds, privacy: .public) s")
+        } catch {
+            state = .failed(error.localizedDescription)
+            Log.speech.error("parakeet: model load failed: \(error.localizedDescription, privacy: .public)")
+        }
+        loadTask = nil
+    }
+
+    private static func seconds(_ duration: Duration) -> Int {
+        Int(duration.components.seconds)
+    }
+}

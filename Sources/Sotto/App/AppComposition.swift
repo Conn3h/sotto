@@ -4,6 +4,14 @@ import Foundation
 /// AppDelegate; every scene reaches it through the delegate adaptor.
 @MainActor
 final class AppComposition {
+    /// The engine the current (or most recent) press was built with. Set by the engine
+    /// factory and read by the pipeline when it records history, so a Settings change made
+    /// mid-utterance cannot mislabel the run.
+    @MainActor
+    private final class ActiveEngine {
+        var name = SpeechEngineChoice.apple.engineName
+    }
+
     let controller: DictationController
     let pipeline: UtterancePipeline
     let capture: AudioCapture
@@ -12,13 +20,24 @@ final class AppComposition {
     init() {
         let capture = AudioCapture()
         self.capture = capture
-        let pipeline = UtterancePipeline()
+        let activeEngine = ActiveEngine()
+        let pipeline = UtterancePipeline(readEngineName: { activeEngine.name })
         let controller = DictationController(
             hotkey: HotkeyMonitor(),
             capture: capture,
             requestMicrophone: { await Permissions.requestMicrophone() },
-            // Read per press so a dictionary edit biases the very next hold.
-            makeEngine: { AppleSpeechEngine(locale: .current, biasPhrases: DictionaryStore.shared.biasPhrases) }
+            // Read per press so an engine switch or a dictionary edit applies to the very
+            // next hold.
+            makeEngine: {
+                let choice = Settings.shared.speechEngine
+                activeEngine.name = choice.engineName
+                switch choice {
+                case .apple:
+                    return AppleSpeechEngine(locale: .current, biasPhrases: DictionaryStore.shared.biasPhrases)
+                case .parakeet:
+                    return ParakeetSpeechEngine()
+                }
+            }
         )
         controller.onFinalTranscript = { raw, utterance in
             await pipeline.process(raw: raw, utterance: utterance)
