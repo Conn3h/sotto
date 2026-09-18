@@ -1,0 +1,33 @@
+Sources/Sotto/UI/SettingsWindow.swift
+  s_ac615380018833::t_9329f122a6bbea 101
+Sources/Sotto/App/AppComposition.swift
+  s_ac615380018833::t_9329f122a6bbea 38
+docs/SPEC.md
+  s_ac615380018833::t_9329f122a6bbea 352-353,356,381-383,388-389
+  s_ac615380018833::t_a0a5c712eae7b6 384-387
+Sources/Sotto/Speech/ParakeetModels.swift
+  s_ac615380018833::t_9329f122a6bbea 5-6,20-26,36-37,51-52,57,67,103-116
+Sources/Sotto/Speech/ParakeetSpeechEngine.swift
+  s_ac615380018833::t_9329f122a6bbea 47,49-51,159-160,171-172,190-201,207-208
+  s_ac615380018833::t_c10ab7ecb9305a 34-40,202-206
+  s_ac615380018833::t_5e70b5eb0de71b 209
+Tests/SottoAppTests/ParakeetSpeechEngineTests.swift
+  s_ac615380018833::t_c10ab7ecb9305a 63-65,79-81
+  s_ac615380018833::t_9329f122a6bbea 51-62,66-78,82-83
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "3e5771a1d2735f91d847c0ad75c3000d051d6a7c",
+  "prompts": {},
+  "sessions": {
+    "s_ac615380018833": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "87c0689c-7564-4122-b9b1-23ab99ad84b1",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Conrad <conne_95@msn.com>"
+    }
+  }
+}
