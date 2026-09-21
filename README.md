@@ -4,6 +4,8 @@
 
 Hold a key, say it under your breath, let go. Sotto writes it where you were typing.
 
+![Sotto: hold a key, talk, release, and the text lands in the Claude Code prompt](docs/media/demo.gif)
+
 Push-to-talk dictation for macOS. Hold a key, talk, release, and cleaned-up text lands in
 whatever text field has focus: a terminal, an editor, a chat box, a prompt for a coding
 agent. Everything runs on your Mac: Apple's on-device speech engine (or NVIDIA Parakeet as
