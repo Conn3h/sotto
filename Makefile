@@ -38,7 +38,16 @@ LSREGISTER := /System/Library/Frameworks/CoreServices.framework/Frameworks/Launc
 SIGN_ID := $(shell security find-identity -v -p codesigning 2>/dev/null \
 	         | grep "Developer ID Application" | head -1 | sed -E 's/.*"(.*)".*/\1/')
 
-.PHONY: all build test app run install clean icon signing-identity launchable
+# Release artefacts. VERSION is read from Info.plist so the tag, the zip name and the
+# bundle never disagree. NOTARY_PROFILE names the keychain item created once with
+# `xcrun notarytool store-credentials`; see the `notary-profile` target.
+VERSION        := $(shell /usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' Resources/Info.plist)
+NOTARY_PROFILE ?= sotto-notary
+DIST           := $(STAGE)/dist
+ZIP            := $(DIST)/Sotto-$(VERSION).zip
+
+.PHONY: all build test app run install clean icon signing-identity launchable \
+        notary-profile notarize release
 
 all: app
 
@@ -105,6 +114,55 @@ icon:
 	@swift Tools/makeicon.swift
 	@iconutil -c icns Resources/AppIcon.iconset -o Resources/AppIcon.icns
 	@echo "wrote Resources/AppIcon.icns"
+
+## Release: notarise the signed bundle and publish it as a GitHub release.
+##
+## `app` signs without a timestamp so offline builds work; notarisation requires a secure
+## timestamp, so `notarize` re-signs the same bundle with one (same identity, so the
+## Accessibility grant is unaffected), zips it with ditto (the only zip Gatekeeper accepts
+## for bundles), submits it, staples the ticket into the bundle and zips again so the
+## download carries the ticket offline. `spctl` runs the same assessment Gatekeeper does on
+## first open, so a failure here is a failure the user would have seen.
+notary-profile:
+	@if ! xcrun notarytool history --keychain-profile "$(NOTARY_PROFILE)" >/dev/null 2>&1; then \
+	    echo "error: no notarytool credentials named '$(NOTARY_PROFILE)' in the keychain." >&2; \
+	    echo "       Create them once (prompts for an app-specific password):" >&2; \
+	    echo "       xcrun notarytool store-credentials $(NOTARY_PROFILE) --apple-id <apple-id> --team-id <team-id>" >&2; \
+	    exit 1; \
+	fi
+
+notarize: launchable notary-profile app
+	@codesign --force --sign "$(SIGN_ID)" \
+	    --entitlements Resources/$(EXEC).entitlements \
+	    --options runtime \
+	    --timestamp \
+	    "$(BUNDLE)"
+	@mkdir -p "$(DIST)"
+	@rm -f "$(ZIP)"
+	@ditto -c -k --keepParent "$(BUNDLE)" "$(ZIP)"
+	@echo "submitting $(notdir $(ZIP)) for notarisation (this waits for Apple)..."
+	@xcrun notarytool submit "$(ZIP)" --keychain-profile "$(NOTARY_PROFILE)" --wait
+	@xcrun stapler staple "$(BUNDLE)"
+	@xcrun stapler validate "$(BUNDLE)"
+	@spctl --assess --type execute --verbose=2 "$(BUNDLE)"
+	@rm -f "$(ZIP)"
+	@ditto -c -k --keepParent "$(BUNDLE)" "$(ZIP)"
+	@echo "notarised $(ZIP)"
+
+# Refuses to publish over an existing tag; bump CFBundleShortVersionString first.
+release: notarize
+	@if git rev-parse -q --verify "refs/tags/v$(VERSION)" >/dev/null; then \
+	    echo "error: tag v$(VERSION) already exists; bump the version in Resources/Info.plist." >&2; \
+	    exit 1; \
+	fi
+	@if [ -n "$$(git status --porcelain)" ]; then \
+	    echo "error: working tree is not clean; commit or stash before releasing." >&2; \
+	    exit 1; \
+	fi
+	@git tag -a "v$(VERSION)" -m "Sotto $(VERSION)"
+	@git push origin "v$(VERSION)"
+	@gh release create "v$(VERSION)" "$(ZIP)" --title "Sotto $(VERSION)" --generate-notes
+	@echo "published v$(VERSION)"
 
 # From the main checkout this also removes every worktree stage under $(STAGE)/worktrees.
 clean:

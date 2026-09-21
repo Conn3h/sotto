@@ -12,11 +12,18 @@ personal dictionary for the names and jargon speech models get wrong, and local 
 No accounts, no network, no subscription.
 
 Built for talking to Claude Code, Codex and the like all day without typing, but it works in
-any app that takes text.
+any app that takes text. If you have used Wispr Flow or Superwhisper, Sotto is the same
+hold-to-talk idea, but open source, fully on-device and free.
 
-Requires macOS 26 and Xcode 26.
+Requires macOS 26.
 
-## Quick start
+## Install
+
+Download the latest `Sotto-x.y.z.zip` from [Releases](https://github.com/Conn3h/sotto/releases),
+unzip it and drag `Sotto.app` to Applications. The build is signed and notarised, so it opens
+without warnings.
+
+Or build it yourself (needs Xcode 26):
 
 ```bash
 make install     # builds, signs, installs to /Applications, launches
@@ -44,6 +51,11 @@ produces a throwaway build; expect to re-grant Accessibility after each rebuild.
 The library targets (`SottoText`, `SottoDictionary`) are tested first and `docs/SPEC.md` is
 the contract every module is written against. Contributions are welcome; keep to the spec,
 or change the spec in the same change. There is no CI; run `make test` locally.
+
+Maintainers cut a release with `make release`: it notarises the signed bundle, tags
+`v<version>` from `Resources/Info.plist` and publishes the zip on GitHub. It needs notarytool
+credentials stored once under the keychain profile `sotto-notary`. `Tools/demo-gif.sh`
+turns a screen recording into the README demo.
 
 ## Privacy
 
