@@ -19,9 +19,9 @@ struct DictionaryCorrectorBiasTests {
     @Test func termsAndCorrectionsBothContribute() {
         let entries: [DictionaryEntry] = [
             .correction(hear: "cloud code", write: "Claude Code"),
-            .term("Jonsson"),
+            .term("Lindqvist"),
         ]
-        #expect(DictionaryCorrector.biasPhrases(from: entries) == ["Claude Code", "Jonsson"])
+        #expect(DictionaryCorrector.biasPhrases(from: entries) == ["Claude Code", "Lindqvist"])
     }
 
     @Test func deduplicatesCaseInsensitivelyKeepingFirstOccurrence() {

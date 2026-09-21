@@ -104,7 +104,7 @@ struct DictionaryFileTests {
 
     @Test func semanticRoundTrip() {
         let original: [DictionaryEntry] = [
-            .term("Jonsson"),
+            .term("Lindqvist"),
             .correction(hear: "cloud code", write: "Claude Code"),
             DictionaryEntry(kind: .term, write: "disabled term", isEnabled: false),
             DictionaryEntry(
