@@ -1,0 +1,19 @@
+README.md
+  s_416b55469eec6a::t_1d9a19a23d9c32 7-8
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "44e1e765f10af425e303794c19736d610d686fdf",
+  "prompts": {},
+  "sessions": {
+    "s_416b55469eec6a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "16a68113-c35f-4db6-b9bc-061e7a7fe3d7",
+        "model": "unknown"
+      },
+      "human_author": "Conrad <conne_95@msn.com>"
+    }
+  }
+}
