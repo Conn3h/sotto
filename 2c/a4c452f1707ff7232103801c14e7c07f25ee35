@@ -1,0 +1,22 @@
+Tests/SottoAppTests/ParakeetSpeechEngineTests.swift
+  s_416b55469eec6a::t_dfa6b3ba21dd10 120-149
+  s_416b55469eec6a::t_107cf7157a5cd3 84-119,150-159
+Sources/Sotto/Speech/ParakeetSpeechEngine.swift
+  s_416b55469eec6a::t_965e8f9af48469 39-63,225-230
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "2ca4c452f1707ff7232103801c14e7c07f25ee35",
+  "prompts": {},
+  "sessions": {
+    "s_416b55469eec6a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "16a68113-c35f-4db6-b9bc-061e7a7fe3d7",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Conrad <conne_95@msn.com>"
+    }
+  }
+}
