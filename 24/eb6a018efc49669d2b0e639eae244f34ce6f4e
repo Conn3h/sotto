@@ -1,0 +1,24 @@
+Makefile
+  s_416b55469eec6a::t_0bf8d807dcb9d1 41-50,118-165
+  s_416b55469eec6a::t_544b69cddbfd6b 166
+Tools/demo-gif.sh
+  s_416b55469eec6a::t_0bf8d807dcb9d1 1-38
+README.md
+  s_416b55469eec6a::t_58731dda054e56 15-16,18,20-26,55-59
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "24eb6a018efc49669d2b0e639eae244f34ce6f4e",
+  "prompts": {},
+  "sessions": {
+    "s_416b55469eec6a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "16a68113-c35f-4db6-b9bc-061e7a7fe3d7",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Conrad <conne_95@msn.com>"
+    }
+  }
+}
