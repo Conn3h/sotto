@@ -36,7 +36,31 @@ actor ParakeetSpeechEngine: TranscriptionEngine {
     /// dictionary that replaces correctly heard words with terms that were never spoken (a
     /// "Kubernetes" entry swallowed "the quick brown fox" in testing). Off, boosting only
     /// rescores spans that already resemble a term, which is the behaviour dictation wants.
-    private static let rescorerConfig = VocabularyRescorer.Config(spotterRescueEnabled: false)
+    ///
+    /// The short-term taper (pivot 5) shrinks the flat boost for terms of fewer than five
+    /// tokens, which is nearly every personal-dictionary word, so a short term has to earn
+    /// its replacement from acoustic evidence rather than from the boost alone.
+    private static let rescorerConfig = VocabularyRescorer.Config(
+        shortTermCbwTaperPivot: shortTermTaperPivot,
+        spotterRescueEnabled: false
+    )
+
+    /// Token count below which the boost tapers; the library's documented opt-in value.
+    private static let shortTermTaperPivot = 5
+
+    /// Minimum Levenshtein similarity between a transcribed span and a term before the
+    /// rescorer may swap it. The library's size-based default (0.55 for a dictionary this
+    /// size) let "alright" become Playwright (0.60), "make sure" become Maestro (0.56) and
+    /// "latest transcripts" become "Vitest TypeScript" (0.67, 0.64). At 0.75 those all fall
+    /// through while a genuine near miss such as "vitess" (0.83) still qualifies. The
+    /// combined acoustic-plus-string confidence gate moves up with it.
+    private static let minBiasSimilarity: Float = 0.75
+    private static let minBiasCombinedConfidence: Float = 0.75
+
+    /// Minimum CTC log-probability the keyword spotter must reach before a term is even a
+    /// candidate. The library default of -12 is documented as lenient; -6 requires the term
+    /// to actually sound present rather than merely look similar on paper.
+    private static let minBiasCtcScore: Float = -6
 
     private var phase: Phase = .idle
     private var manager: SlidingWindowAsrManager?
@@ -198,7 +222,12 @@ actor ParakeetSpeechEngine: TranscriptionEngine {
             Log.speech.error("parakeet: \(self.biasPhrases.count, privacy: .public) bias phrases skipped, no CTC model")
             return
         }
-        let vocabulary = CustomVocabularyContext(terms: biasPhrases.map { CustomVocabularyTerm(text: $0) })
+        let vocabulary = CustomVocabularyContext(
+            terms: biasPhrases.map { CustomVocabularyTerm(text: $0) },
+            minCtcScore: Self.minBiasCtcScore,
+            minSimilarity: Self.minBiasSimilarity,
+            minCombinedConfidence: Self.minBiasCombinedConfidence
+        )
         try await manager.configureVocabularyBoosting(
             vocabulary: vocabulary,
             ctcModels: ctc,

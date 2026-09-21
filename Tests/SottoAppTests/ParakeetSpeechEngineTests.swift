@@ -81,6 +81,82 @@ struct ParakeetSpeechEngineTests {
         }
     }
 
+    /// Ordinary English near a real personal dictionary must survive boosting: "alright"
+    /// is not Playwright, "make sure" is not Maestro, and "latest transcripts" is not
+    /// "Vitest TypeScript". The vocabulary mirrors a live dictionary so the library's
+    /// size-based threshold applies. Exercised only when both model sets are cached.
+    @Test func boostingLeavesOrdinaryWordsAlone() async throws {
+        let cache = AsrModels.defaultCacheDirectory(for: ParakeetModels.version)
+        guard AsrModels.modelsExist(at: cache),
+              CtcModels.modelsExist(at: CtcModels.defaultCacheDirectory()) else {
+            return
+        }
+        try await Self.waitForModels()
+
+        let audioURL = try Self.synthesise("alright, make sure the latest transcripts are pushed")
+        defer { try? FileManager.default.removeItem(at: audioURL) }
+
+        let engine = ParakeetSpeechEngine(biasPhrases: Self.developerVocabulary)
+        let snapshots = try await engine.start()
+        let format = try #require(await engine.preferredInputFormat())
+        for chunk in try Self.chunks(of: audioURL, in: format) {
+            await engine.feed(chunk)
+        }
+        await engine.finish()
+
+        var finalText: String?
+        for try await snapshot in snapshots where snapshot.isFinal {
+            finalText = snapshot.text
+        }
+        let text = try #require(finalText).lowercased()
+        for expected in ["make sure", "latest", "transcripts"] {
+            #expect(text.contains(expected), "lost \(expected): \(text)")
+        }
+        for phrase in ["playwright", "maestro", "vitest", "typescript"] {
+            #expect(!text.contains(phrase), "unspoken phrase injected: \(text)")
+        }
+    }
+
+    /// The tighter gates must not cost the terms that are actually spoken.
+    @Test func boostingKeepsSpokenTerms() async throws {
+        let cache = AsrModels.defaultCacheDirectory(for: ParakeetModels.version)
+        guard AsrModels.modelsExist(at: cache),
+              CtcModels.modelsExist(at: CtcModels.defaultCacheDirectory()) else {
+            return
+        }
+        try await Self.waitForModels()
+
+        let audioURL = try Self.synthesise("push the fix to github and run playwright and vitest")
+        defer { try? FileManager.default.removeItem(at: audioURL) }
+
+        let engine = ParakeetSpeechEngine(biasPhrases: Self.developerVocabulary)
+        let snapshots = try await engine.start()
+        let format = try #require(await engine.preferredInputFormat())
+        for chunk in try Self.chunks(of: audioURL, in: format) {
+            await engine.feed(chunk)
+        }
+        await engine.finish()
+
+        var finalText: String?
+        for try await snapshot in snapshots where snapshot.isFinal {
+            finalText = snapshot.text
+        }
+        let text = try #require(finalText).lowercased()
+        for expected in ["github", "playwright", "vitest"] {
+            #expect(text.contains(expected), "lost \(expected): \(text)")
+        }
+    }
+
+    /// A realistic 36-term developer dictionary, the shape that produced the false
+    /// replacements in the field.
+    private static let developerVocabulary = [
+        "Daymend", "Sotto", "Codex", "Claude Code", "Supabase", "Vercel", "PostHog",
+        "RevenueCat", "Expo", "React Native", "Next.js", "TypeScript", "Vitest", "Stryker",
+        "Maestro", "Sentry", "Upstash", "TestFlight", "App Store Connect", "Xcode", "GitHub",
+        "Playwright", "Zod", "Hermes", "SwiftUI", "Postgres", "Anthropic", "OpenAI", "repo",
+        "PR", "worktree", "rebase", "i18n", "RLS", "MCP", "herdr",
+    ]
+
     @Test func finishBeforeAnyAudioYieldsEmptyFinal() async throws {
         let cache = AsrModels.defaultCacheDirectory(for: ParakeetModels.version)
         guard AsrModels.modelsExist(at: cache) else {
