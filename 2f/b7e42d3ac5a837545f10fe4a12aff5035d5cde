@@ -1,0 +1,23 @@
+Tests/SottoDictionaryTests/DictionaryFileTests.swift
+  s_416b55469eec6a::t_69e78eb98267c9 107
+docs/reviews/2026-09-02-codex-delta-review.md
+  s_416b55469eec6a::t_69e78eb98267c9 9,12-13,15,18
+Tests/SottoDictionaryTests/DictionaryCorrectorBiasTests.swift
+  s_416b55469eec6a::t_69e78eb98267c9 22,24
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "2fb7e42d3ac5a837545f10fe4a12aff5035d5cde",
+  "prompts": {},
+  "sessions": {
+    "s_416b55469eec6a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "16a68113-c35f-4db6-b9bc-061e7a7fe3d7",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Conrad <conne_95@msn.com>"
+    }
+  }
+}
